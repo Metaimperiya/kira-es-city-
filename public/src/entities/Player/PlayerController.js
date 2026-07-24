@@ -1,3 +1,7 @@
+// ============================================================
+// ФИЗИКА И ДВИЖЕНИЕ
+// ============================================================
+
 import * as THREE from 'three';
 import { PlayerCamera } from './PlayerCamera.js';
 import { mainShip } from '../Ship.js';
@@ -23,6 +27,7 @@ export const PlayerController = {
   update(input, delta) {
     let moveX = input.moveX;
     let moveZ = input.moveZ;
+
     const speed = 11;
     let moved = false;
 
@@ -30,6 +35,7 @@ export const PlayerController = {
       const len = Math.hypot(moveX, moveZ);
       const normX = moveX / len;
       const normZ = moveZ / len;
+
       const yaw = PlayerCamera.euler.y;
       const sin = Math.sin(yaw);
       const cos = Math.cos(yaw);
@@ -61,6 +67,7 @@ export const PlayerController = {
       this.pos.x += dx;
       this.pos.z += dz;
       moved = true;
+
       this.rotation = Math.atan2(dx, dz);
       this.group.rotation.y = this.rotation;
     }
@@ -70,6 +77,7 @@ export const PlayerController = {
       rayOrigin.set(this.pos.x, this.pos.y + 3, this.pos.z);
       downRaycaster.set(rayOrigin, downVector);
       const hits = downRaycaster.intersectObject(mainShip, true);
+
       if (hits.length > 0) {
         const hit = hits[0];
         if (hit.point.y >= -1 && (this.pos.y + 3 - hit.point.y) <= 20) {
@@ -93,6 +101,7 @@ export const PlayerController = {
     if (!this.isGrounded) {
       this.velocityY += gravity * delta;
       this.pos.y += this.velocityY * delta;
+
       if (this.pos.y <= floorY) {
         this.pos.y = floorY;
         this.velocityY = 0;
@@ -103,6 +112,7 @@ export const PlayerController = {
     }
 
     this.group.position.set(this.pos.x, this.pos.y, this.pos.z);
+
     return moved;
   },
 
