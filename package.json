@@ -1,6 +1,7 @@
 {
-  "name": "kira-es-city",
+  "name": "angelos-city",
   "version": "1.0.0",
+  "license": "MIT",
   "description": "Мультиплеерный 3D-город",
   "main": "server.js",
   "scripts": {
