@@ -1,5 +1,5 @@
 // ============================================================
-// КЛИК-УПРАВЛЕНИЕ (Point-and-Click как в Avakin Life)
+// КЛИК-УПРАВЛЕНИЕ (ТОЛЬКО ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ)
 // ============================================================
 
 import * as THREE from 'three';
@@ -15,6 +15,7 @@ let clickMarker = null;
 const MOVE_SPEED = 7;
 
 export let isClickMoving = false;
+let isMobile = false;
 
 function createClickMarker() {
   const geo = new THREE.RingGeometry(0.2, 0.4, 32);
@@ -31,6 +32,15 @@ function createClickMarker() {
 }
 
 export function initClickControls(walkableObjects = []) {
+  // 🛡 ВКЛЮЧАЕМ ТОЛЬКО ДЛЯ МОБИЛОК
+  isMobile = window.matchMedia('(pointer: coarse)').matches;
+  
+  if (!isMobile) {
+    console.log('🖥️ ПК режим: клик-управление отключено');
+    return;
+  }
+
+  console.log('📱 Мобильный режим: клик-управление активировано');
   createClickMarker();
 
   const handlePointer = (e) => {
@@ -61,6 +71,7 @@ export function initClickControls(walkableObjects = []) {
 }
 
 export function updateClickMovement(delta, playerMesh) {
+  if (!isMobile) return;
   if (!targetPosition || !playerPos) {
     isClickMoving = false;
     return;
@@ -96,4 +107,8 @@ export function cancelClickMovement() {
   targetPosition = null;
   if (clickMarker) clickMarker.visible = false;
   isClickMoving = false;
+}
+
+export function isMobileDevice() {
+  return isMobile;
 }
