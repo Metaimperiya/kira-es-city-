@@ -1,5 +1,5 @@
 // ============================================================
-// СИНХРОНИЗАЦИЯ УДАЛЁННЫХ ИГРОКОВ
+// СИНХРОНИЗАЦИЯ УДАЛЁННЫХ ИГРОКОВ (С LERP)
 // ============================================================
 
 import * as THREE from 'three';
@@ -85,17 +85,44 @@ export function addRemotePlayer(id, data) {
   if (remoteMeshes[id]) return;
   const color = data.color || 0xff4488;
   const mesh = createRemotePlayerMesh(color);
-  mesh.position.set(data.x || 0, data.y || 0, data.z || 0);
+  
+  const startX = data.x || 0;
+  const startY = data.y || 0;
+  const startZ = data.z || 0;
+
+  mesh.position.set(startX, startY, startZ);
   scene.add(mesh);
+
   remoteMeshes[id] = mesh;
-  remotePlayers[id] = data;
+  remotePlayers[id] = {
+    ...data,
+    targetPosition: new THREE.Vector3(startX, startY, startZ),
+    targetRotation: data.rotation || 0
+  };
 }
 
 export function updateRemotePlayer(id, data) {
-  if (remoteMeshes[id]) {
-    remoteMeshes[id].position.set(data.x || 0, data.y || 0, data.z || 0);
+  if (remotePlayers[id]) {
+    remotePlayers[id].targetPosition.set(data.x || 0, data.y || 0, data.z || 0);
     if (data.rotation !== undefined) {
-      remoteMeshes[id].rotation.y = data.rotation;
+      remotePlayers[id].targetRotation = data.rotation;
+    }
+  }
+}
+
+export function updateSync(delta) {
+  const lerpSpeed = 15;
+
+  for (const id in remoteMeshes) {
+    const mesh = remoteMeshes[id];
+    const player = remotePlayers[id];
+
+    if (mesh && player) {
+      mesh.position.lerp(player.targetPosition, Math.min(delta * lerpSpeed, 1));
+
+      let diff = player.targetRotation - mesh.rotation.y;
+      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+      mesh.rotation.y += diff * Math.min(delta * lerpSpeed, 1);
     }
   }
 }
@@ -123,12 +150,23 @@ export function removeRemotePlayer(id) {
 }
 
 let lastSend = 0;
+let lastX = 0, lastY = 0, lastZ = 0, lastRot = 0;
 const TICK_RATE = 20;
 
 export function sendPosition(x, y, z, rotation) {
   const now = performance.now();
   if (now - lastSend < 1000 / TICK_RATE) return;
+
+  const distSq = (x - lastX) ** 2 + (y - lastY) ** 2 + (z - lastZ) ** 2;
+  const rotDiff = Math.abs((rotation || 0) - lastRot);
+
+  if (distSq < 0.0001 && rotDiff < 0.01) return;
+
   lastSend = now;
+  lastX = x;
+  lastY = y;
+  lastZ = z;
+  lastRot = rotation || 0;
 
   sendToServer({
     type: 'move',
