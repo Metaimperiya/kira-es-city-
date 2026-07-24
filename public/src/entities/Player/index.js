@@ -1,3 +1,7 @@
+// ============================================================
+// ИГРОК (СБОРКА) - С ПРОВЕРКОЙ ПАДЕНИЯ ЗА БОРТ
+// ============================================================
+
 import * as THREE from 'three';
 import { scene, camera } from '../../core/scene.js';
 import { teleportToShip } from '../Ship.js';
@@ -5,10 +9,14 @@ import { PlayerInput } from './PlayerInput.js';
 import { PlayerController } from './PlayerController.js';
 import { PlayerCamera } from './PlayerCamera.js';
 import { sendPosition } from '../../network/sync.js';
+import { triggerRespawnVFX } from '../../ui/vfx.js';
+import { addChatMessage } from '../../ui/chat.js';
 
 export let playerPos = { x: 0, z: 0, y: 0 };
 let playerGroup;
 let delta = 0;
+
+export let velocityY = 0;
 
 export function setDelta(value) {
   delta = value;
@@ -43,6 +51,7 @@ export function createPlayer() {
     const eye = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.12), eyeMat);
     eye.position.set(side * 0.2, 1.6, 0.35);
     playerGroup.add(eye);
+
     const pupil = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.06), pupilMat);
     pupil.position.set(side * 0.2, 1.6, 0.45);
     playerGroup.add(pupil);
@@ -57,13 +66,40 @@ export function createPlayer() {
 
   playerGroup.position.set(playerPos.x, playerPos.y, playerPos.z);
   PlayerController.init(playerGroup, playerPos);
+
   sendPosition(playerPos.x, playerPos.y, playerPos.z, 0);
+}
+
+export function checkWaterFall() {
+  if (!playerPos) return;
+
+  const WATER_LEVEL = -1.5;
+
+  if (playerPos.y < WATER_LEVEL) {
+    triggerRespawnVFX('#00f3ff');
+
+    const spawn = teleportToShip();
+    playerPos.x = spawn.x;
+    playerPos.y = spawn.y;
+    playerPos.z = spawn.z;
+
+    velocityY = 0;
+    PlayerController.velocityY = 0;
+    sendPosition(playerPos.x, playerPos.y, playerPos.z, 0);
+
+    addChatMessage('Система', '🌊 Вы упали за борт и были возвращены на корабль!', '#ff007f');
+
+    console.log('🚨 Игрок упал в воду. Телепортация на спавн завершена.');
+  }
 }
 
 export function updatePlayer() {
   const input = PlayerInput.getInput();
   const moved = PlayerController.update(input, delta);
   PlayerCamera.update(playerPos, input);
+
+  checkWaterFall();
+
   if (moved) {
     sendPosition(playerPos.x, playerPos.y, playerPos.z, PlayerController.getRotation());
   }
