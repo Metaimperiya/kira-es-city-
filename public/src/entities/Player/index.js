@@ -1,5 +1,5 @@
 // ============================================================
-// ИГРОК (СБОРКА) - С ПОДДЕРЖКОЙ КЛИК-УПРАВЛЕНИЯ
+// ИГРОК (СБОРКА)
 // ============================================================
 
 import * as THREE from 'three';
@@ -11,7 +11,7 @@ import { PlayerCamera } from './PlayerCamera.js';
 import { sendPosition } from '../../network/sync.js';
 import { triggerRespawnVFX } from '../../ui/vfx.js';
 import { addChatMessage } from '../../ui/chat.js';
-import { updateClickMovement, cancelClickMovement, isClickMoving } from './clickControls.js';
+import { updateClickMovement, cancelClickMovement, isClickMoving, isMobileDevice } from './clickControls.js';
 
 export let playerPos = { x: 0, z: 0, y: 0 };
 let playerGroup;
@@ -60,9 +60,9 @@ export function createPlayer() {
 
   const spawn = teleportToShip();
   if (spawn) {
-    playerPos.x = spawn.x + (Math.random() - 0.5) * 4;
-    playerPos.z = spawn.z + (Math.random() - 0.5) * 4;
+    playerPos.x = spawn.x;
     playerPos.y = spawn.y;
+    playerPos.z = spawn.z;
   }
 
   playerGroup.position.set(playerPos.x, playerPos.y, playerPos.z);
@@ -100,13 +100,14 @@ export function checkWaterFall() {
 
 export function updatePlayer() {
   const input = PlayerInput.getInput();
+  const isMobile = isMobileDevice();
   
   // Если есть движение с клавиатуры — отменяем клик-движение
   if (Math.abs(input.moveX) > 0.05 || Math.abs(input.moveZ) > 0.05) {
     cancelClickMovement();
     PlayerController.update(input, delta);
-  } else if (isClickMoving) {
-    // Движение по клику
+  } else if (isMobile && isClickMoving) {
+    // ТОЛЬКО НА МОБИЛКАХ: движение по клику
     updateClickMovement(delta, playerGroup);
   } else {
     // Стоим на месте
