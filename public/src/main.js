@@ -1,3 +1,7 @@
+// ============================================================
+// ГЛАВНЫЙ ФАЙЛ (С ПРАВИЛЬНЫМ ASYNC)
+// ============================================================
+
 import * as THREE from 'three';
 import { initScene, scene, camera, renderer } from './core/scene.js';
 import { createWorld } from './core/world.js';
@@ -8,32 +12,41 @@ import { initSync } from './network/sync.js';
 import { initChat } from './ui/chat.js';
 import { updateHUD } from './ui/hud.js';
 
-console.log('🚀 Запуск Kira ES City...');
+console.log('🚀 Запуск Angelos City...');
 
-initScene();
-createWorld();
-await loadShip();
-initControls();
-createPlayer();
-initSocket();
-initSync();
-initChat();
-updateHUD(1);
+// ✅ ВСЁ ЗАВОРАЧИВАЕМ В ASYNC IIFE
+(async function main() {
+  initScene();
+  createWorld();
+  
+  await loadShip(); // ✅ Теперь await работает
 
-const clock = new THREE.Clock();
+  initControls();
+  createPlayer();
+  initSocket();
+  initSync();
+  initChat();
+  updateHUD(1);
 
-function animate() {
-  requestAnimationFrame(animate);
-  const delta = Math.min(clock.getDelta(), 0.05);
-  setDelta(delta);
-  updatePlayer();
-  renderer.render(scene, camera);
-}
+  console.log('✅ Все системы инициализированы');
 
-animate();
+  const clock = new THREE.Clock();
 
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
+  function animate() {
+    requestAnimationFrame(animate);
+    const delta = Math.min(clock.getDelta(), 0.05);
+    setDelta(delta);
+    updatePlayer();
+    renderer.render(scene, camera);
+  }
+
+  animate();
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  console.log('🚢 Angelos City загружен и готов к работе!');
+})();
