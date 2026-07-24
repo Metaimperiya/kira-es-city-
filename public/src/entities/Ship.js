@@ -1,5 +1,5 @@
 // ============================================================
-// КОРАБЛЬ (OBJ + MTL)
+// КОРАБЛЬ (OBJ + MTL) - С ПРАВИЛЬНЫМ ОБНОВЛЕНИЕМ МАТРИЦЫ
 // ============================================================
 
 import * as THREE from 'three';
@@ -91,6 +91,8 @@ function setupShip(object) {
   scene.add(shipContainer);
   mainShip = shipContainer;
 
+  shipContainer.updateMatrixWorld(true);
+
   const localVec = new THREE.Vector3(SPAWN_LOCAL.x, SPAWN_LOCAL.y, SPAWN_LOCAL.z);
   const worldVec = shipContainer.localToWorld(localVec);
 
@@ -100,7 +102,7 @@ function setupShip(object) {
     z: worldVec.z
   };
 
-  console.log(`✅ Корабль загружен! Спавн: Y=${shipSpawnPoint.y.toFixed(2)}`);
+  console.log(`✅ Корабль загружен! Точный спавн: X=${shipSpawnPoint.x.toFixed(2)}, Y=${shipSpawnPoint.y.toFixed(2)}, Z=${shipSpawnPoint.z.toFixed(2)}`);
 
   if (playerPos) {
     playerPos.x = shipSpawnPoint.x;
@@ -111,20 +113,31 @@ function setupShip(object) {
 }
 
 window.addEventListener('keydown', (e) => {
-  if ((e.code === 'KeyP' || e.key === 'p') && mainShip && playerPos) {
+  const activeTag = document.activeElement?.tagName;
+  if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+
+  const key = e.key.toLowerCase();
+  if ((e.code === 'KeyP' || key === 'p' || key === 'з') && mainShip && playerPos) {
+    mainShip.updateMatrixWorld(true);
+    
     const playerWorldVec = new THREE.Vector3(playerPos.x, playerPos.y, playerPos.z);
     const shipLocalVec = mainShip.worldToLocal(playerWorldVec.clone());
 
     const coordsString = `x: ${shipLocalVec.x.toFixed(2)}, y: ${shipLocalVec.y.toFixed(2)}, z: ${shipLocalVec.z.toFixed(2)}`;
     
-    console.log('%c 🎯 ЛОКАЛЬНАЯ ТОЧКА:', 'background: #222; color: #bada55; font-size: 16px');
+    console.log('%c 🎯 ЛОКАЛЬНАЯ ТОЧКА КОРАБЛЯ:', 'background: #111; color: #00f3ff; font-size: 14px; font-weight: bold;');
     console.log(coordsString);
-    alert(`📍 Координаты:\n${coordsString}`);
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(coordsString);
+      console.log('📋 Координаты скопированы в буфер обмена!');
+    }
   }
 });
 
 export function teleportToShip() {
   if (mainShip) {
+    mainShip.updateMatrixWorld(true);
     const localVec = new THREE.Vector3(SPAWN_LOCAL.x, SPAWN_LOCAL.y, SPAWN_LOCAL.z);
     const worldVec = mainShip.localToWorld(localVec);
     return { x: worldVec.x, y: worldVec.y, z: worldVec.z };
