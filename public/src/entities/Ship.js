@@ -1,5 +1,5 @@
 // ============================================================
-// КОРАБЛЬ (OBJ + MTL)
+// КОРАБЛЬ (OBJ + MTL) - С НОВЫМИ КООРДИНАТАМИ
 // ============================================================
 
 import * as THREE from 'three';
@@ -11,9 +11,11 @@ import { sendPosition } from '../network/sync.js';
 
 export let mainShip = null;
 
-export const SPAWN_LOCAL = { x: 0.49, y: 40.31, z: 36.01 };
+// 🎯 НОВЫЕ КООРДИНАТЫ (ТЫ НАЖАЛ P И ПОЛУЧИЛ)
+// x: -2.01, y: 6.00, z: 12.56
+export const SPAWN_LOCAL = { x: -2.01, y: 6.00, z: 12.56 };
 
-export let shipSpawnPoint = { x: 0, y: 10, z: 0 };
+export let shipSpawnPoint = { x: 0, y: 5, z: 0 };
 
 export function loadShip() {
   return new Promise((resolve) => {
@@ -86,7 +88,8 @@ function setupShip(object) {
   });
 
   const shipHeight = size.y * scale;
-  shipContainer.position.set(0, -shipHeight * 0.24, 0);
+  // Опускаем модель ниже (было 0.24, стало 0.15)
+  shipContainer.position.set(0, -shipHeight * 0.15, 0);
 
   scene.add(shipContainer);
   mainShip = shipContainer;
@@ -102,7 +105,7 @@ function setupShip(object) {
     z: worldVec.z
   };
 
-  console.log(`✅ Корабль загружен! Точный спавн: X=${shipSpawnPoint.x.toFixed(2)}, Y=${shipSpawnPoint.y.toFixed(2)}, Z=${shipSpawnPoint.z.toFixed(2)}`);
+  console.log(`✅ Корабль загружен! Спавн: X=${shipSpawnPoint.x.toFixed(2)}, Y=${shipSpawnPoint.y.toFixed(2)}, Z=${shipSpawnPoint.z.toFixed(2)}`);
 
   if (playerPos) {
     playerPos.x = shipSpawnPoint.x;
