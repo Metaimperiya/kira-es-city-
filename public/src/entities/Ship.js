@@ -1,5 +1,5 @@
 // ============================================================
-// КОРАБЛЬ (OBJ + MTL) - ЧУТЬ-ЧУТЬ ОПУСТИЛ
+// КОРАБЛЬ (OBJ + MTL) - ЕЩЕ ЧУТЬ-ЧУТЬ ОПУСТИЛ
 // ============================================================
 
 import * as THREE from 'three';
@@ -11,7 +11,7 @@ import { sendPosition } from '../network/sync.js';
 
 export let mainShip = null;
 
-// 🎯 КООРДИНАТЫ С ПАЛУБЫ (ТЫ НАЖАЛ P)
+// 🎯 КООРДИНАТЫ С ПАЛУБЫ
 export const SPAWN_LOCAL = { x: 0.04, y: 12.50, z: 2.64 };
 
 export let shipSpawnPoint = { x: 0, y: 5, z: 0 };
@@ -88,8 +88,8 @@ function setupShip(object) {
 
   const shipHeight = size.y * scale;
   
-  // 🎯 ЧУТЬ-ЧУТЬ ОПУСТИЛ (было 0.25, стало 0.28)
-  shipContainer.position.set(0, -shipHeight * 0.28, 0);
+  // 🎯 ЕЩЕ ЧУТЬ-ЧУТЬ ОПУСТИЛ (было 0.28, стало 0.31)
+  shipContainer.position.set(0, -shipHeight * 0.31, 0);
 
   scene.add(shipContainer);
   mainShip = shipContainer;
@@ -106,7 +106,7 @@ function setupShip(object) {
   };
 
   console.log(`✅ Корабль загружен! Спавн: X=${shipSpawnPoint.x.toFixed(2)}, Y=${shipSpawnPoint.y.toFixed(2)}, Z=${shipSpawnPoint.z.toFixed(2)}`);
-  console.log(`📏 Коэффициент опускания: 0.28`);
+  console.log(`📏 Коэффициент опускания: 0.31`);
 
   if (playerPos) {
     playerPos.x = shipSpawnPoint.x;
