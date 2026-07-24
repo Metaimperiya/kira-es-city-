@@ -12,10 +12,10 @@ import { sendPosition } from '../network/sync.js';
 export let mainShip = null;
 
 // 🎯 НОВЫЕ КООРДИНАТЫ (ТЫ НАЖАЛ P И ПОЛУЧИЛ)
-// x: -2.01, y: 6.00, z: 12.56
-export const SPAWN_LOCAL = { x: -2.01, y: 6.00, z: 12.56 };
+// x: -13.35, y: 3.75, z: 8.68
+export const SPAWN_LOCAL = { x: -13.35, y: 3.75, z: 8.68 };
 
-export let shipSpawnPoint = { x: 0, y: 5, z: 0 };
+export let shipSpawnPoint = { x: 0, y: 3, z: 0 };
 
 export function loadShip() {
   return new Promise((resolve) => {
@@ -88,8 +88,8 @@ function setupShip(object) {
   });
 
   const shipHeight = size.y * scale;
-  // Опускаем модель ниже (было 0.24, стало 0.15)
-  shipContainer.position.set(0, -shipHeight * 0.15, 0);
+  // ЕЩЁ НИЖЕ (было 0.15, стало 0.08)
+  shipContainer.position.set(0, -shipHeight * 0.08, 0);
 
   scene.add(shipContainer);
   mainShip = shipContainer;
