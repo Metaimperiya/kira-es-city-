@@ -1,5 +1,5 @@
 // ============================================================
-// ИГРОК (СБОРКА) - С ПРОВЕРКОЙ ПАДЕНИЯ ЗА БОРТ
+// ИГРОК (СБОРКА)
 // ============================================================
 
 import * as THREE from 'three';
@@ -15,8 +15,6 @@ import { addChatMessage } from '../../ui/chat.js';
 export let playerPos = { x: 0, z: 0, y: 0 };
 let playerGroup;
 let delta = 0;
-
-export let velocityY = 0;
 
 export function setDelta(value) {
   delta = value;
@@ -83,7 +81,6 @@ export function checkWaterFall() {
     playerPos.y = spawn.y;
     playerPos.z = spawn.z;
 
-    velocityY = 0;
     PlayerController.velocityY = 0;
     sendPosition(playerPos.x, playerPos.y, playerPos.z, 0);
 
