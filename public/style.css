@@ -91,6 +91,7 @@ body {
 }
 #chat-log .msg .name { color: #00f3ff; font-weight: bold; }
 #chat-log .msg .text { color: #ffffff; }
+#chat-log .system { color: #ff007f; font-style: italic; }
 
 #chat-input-row { display: flex; gap: 6px; }
 #chat-input {
@@ -132,7 +133,7 @@ body {
   cursor: pointer;
   font-family: monospace;
   font-size: 12px;
-  display: none;
+  display: block; /* ✅ ИСПРАВЛЕНО — теперь видна */
 }
 #chat-toggle:hover { background: #00f3ff; color: #000; }
 
