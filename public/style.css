@@ -3,11 +3,14 @@
   padding: 0;
   box-sizing: border-box;
   touch-action: none;
+  -webkit-tap-highlight-color: transparent;
 }
+
 body {
   overflow: hidden;
   background: #020208;
   font-family: monospace;
+  user-select: none;
 }
 
 #loading {
@@ -20,7 +23,15 @@ body {
   z-index: 50;
   text-shadow: 0 0 30px #00f3ff;
   animation: blink 1s infinite alternate;
+  transition: opacity 0.8s ease, visibility 0.8s ease;
+  pointer-events: none;
 }
+
+#loading.hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
 @keyframes blink {
   0% { opacity: 0.3; }
   100% { opacity: 1; }
@@ -28,10 +39,10 @@ body {
 
 #players-count {
   position: absolute;
-  top: 15px;
-  right: 15px;
+  top: max(15px, env(safe-area-inset-top));
+  right: max(15px, env(safe-area-inset-right));
   color: #00ff88;
-  background: rgba(0,0,0,0.7);
+  background: rgba(0, 0, 0, 0.7);
   padding: 4px 12px;
   border-radius: 8px;
   font-size: 14px;
@@ -42,8 +53,8 @@ body {
 
 #jump-btn {
   position: absolute;
-  bottom: 30px;
-  right: 30px;
+  bottom: max(30px, env(safe-area-inset-bottom));
+  right: max(30px, env(safe-area-inset-right));
   width: 70px;
   height: 70px;
   border-radius: 50%;
@@ -57,9 +68,10 @@ body {
   justify-content: center;
   align-items: center;
   touch-action: none;
-  user-select: none;
   font-family: monospace;
+  cursor: pointer;
 }
+
 #jump-btn:active {
   background: rgba(255, 0, 127, 0.4);
   transform: scale(0.92);
@@ -67,19 +79,21 @@ body {
 
 #chat {
   position: absolute;
-  bottom: 80px;
-  left: 10px;
+  bottom: max(60px, env(safe-area-inset-bottom));
+  left: max(10px, env(safe-area-inset-left));
   width: calc(100% - 20px);
   max-width: 320px;
   max-height: 180px;
   z-index: 100;
   display: none;
   flex-direction: column;
-  background: rgba(0,0,0,0.85);
+  background: rgba(0, 0, 0, 0.85);
   border: 1px solid #00f3ff;
   border-radius: 12px;
   padding: 8px;
+  backdrop-filter: blur(4px);
 }
+
 #chat-log {
   flex: 1;
   overflow-y: auto;
@@ -88,15 +102,30 @@ body {
   font-size: 12px;
   line-height: 1.5;
   margin-bottom: 6px;
+  touch-action: pan-y;
+  user-select: text;
 }
+
+#chat-log::-webkit-scrollbar {
+  width: 4px;
+}
+#chat-log::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+}
+#chat-log::-webkit-scrollbar-thumb {
+  background: #00f3ff;
+  border-radius: 2px;
+}
+
 #chat-log .msg .name { color: #00f3ff; font-weight: bold; }
 #chat-log .msg .text { color: #ffffff; }
 #chat-log .system { color: #ff007f; font-style: italic; }
 
 #chat-input-row { display: flex; gap: 6px; }
+
 #chat-input {
   flex: 1;
-  background: transparent;
+  background: rgba(0, 0, 0, 0.5);
   border: 1px solid #334466;
   color: #fff;
   padding: 6px 10px;
@@ -105,6 +134,8 @@ body {
   outline: none;
   font-family: monospace;
   min-height: 36px;
+  touch-action: auto;
+  user-select: text;
 }
 #chat-input:focus { border-color: #00f3ff; }
 
@@ -117,15 +148,16 @@ body {
   cursor: pointer;
   font-family: monospace;
   font-size: 14px;
+  transition: all 0.2s ease;
 }
 #chat-send:hover { background: #00f3ff; color: #000; }
 
 #chat-toggle {
   position: absolute;
-  bottom: 10px;
-  left: 10px;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  left: max(10px, env(safe-area-inset-left));
   z-index: 99;
-  background: rgba(0,0,0,0.7);
+  background: rgba(0, 0, 0, 0.7);
   border: 1px solid #00f3ff;
   color: #00f3ff;
   padding: 6px 14px;
@@ -133,7 +165,8 @@ body {
   cursor: pointer;
   font-family: monospace;
   font-size: 12px;
-  display: block; /* ✅ ИСПРАВЛЕНО — теперь видна */
+  display: block;
+  transition: all 0.2s ease;
 }
 #chat-toggle:hover { background: #00f3ff; color: #000; }
 
