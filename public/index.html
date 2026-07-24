@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>🚢 Kira ES City</title>
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="loading">⏳ Подключение к серверу...</div>
+  <div id="players-count">👥 <span id="count-display">1</span></div>
+  <div id="jump-btn">⬆</div>
+
+  <div id="chat">
+    <div id="chat-log"></div>
+    <div id="chat-input-row">
+      <input id="chat-input" type="text" placeholder="Написать..." maxlength="100" />
+      <button id="chat-send">➤</button>
+    </div>
+  </div>
+  <button id="chat-toggle">💬 Чат</button>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
