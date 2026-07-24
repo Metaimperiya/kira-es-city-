@@ -1,3 +1,7 @@
+// ============================================================
+// МИР (МОРЕ)
+// ============================================================
+
 import * as THREE from 'three';
 import { scene } from './scene.js';
 
@@ -14,5 +18,6 @@ export function createWorld() {
   sea.position.y = -0.5;
   sea.receiveShadow = true;
   scene.add(sea);
+
   console.log('🌊 Море создано');
 }
