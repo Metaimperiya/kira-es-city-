@@ -1,5 +1,5 @@
 // ============================================================
-// КОРАБЛЬ (OBJ + MTL) - ОПУЩЕННЫЙ К ВОДЕ
+// КОРАБЛЬ (OBJ + MTL) - ПОДНЯТ НА ПОЛОВИНУ
 // ============================================================
 
 import * as THREE from 'three';
@@ -11,10 +11,11 @@ import { sendPosition } from '../network/sync.js';
 
 export let mainShip = null;
 
-// 🎯 КООРДИНАТЫ С ПАЛУБЫ
-export const SPAWN_LOCAL = { x: -13.35, y: 3.75, z: 8.68 };
+// 🎯 КООРДИНАТЫ С ПАЛУБЫ (ТЫ НАЖАЛ P ПОСЛЕ ОПУСКАНИЯ)
+// x: 0.04, y: 12.50, z: 2.64
+export const SPAWN_LOCAL = { x: 0.04, y: 12.50, z: 2.64 };
 
-export let shipSpawnPoint = { x: 0, y: 2, z: 0 };
+export let shipSpawnPoint = { x: 0, y: 5, z: 0 };
 
 export function loadShip() {
   return new Promise((resolve) => {
@@ -88,8 +89,8 @@ function setupShip(object) {
 
   const shipHeight = size.y * scale;
   
-  // 🎯 ОПУСКАЕМ МОДЕЛЬ К ВОДЕ
-  shipContainer.position.set(0, -shipHeight * 0.5, 0);
+  // 🎯 ПОДНИМАЕМ НА ПОЛОВИНУ (было 0.5, стало 0.25)
+  shipContainer.position.set(0, -shipHeight * 0.25, 0);
 
   scene.add(shipContainer);
   mainShip = shipContainer;
@@ -106,6 +107,8 @@ function setupShip(object) {
   };
 
   console.log(`✅ Корабль загружен! Спавн: X=${shipSpawnPoint.x.toFixed(2)}, Y=${shipSpawnPoint.y.toFixed(2)}, Z=${shipSpawnPoint.z.toFixed(2)}`);
+  console.log(`📏 Высота модели: ${shipHeight.toFixed(2)} метров`);
+  console.log(`🌊 Положение: ${-shipHeight * 0.25 > 0 ? 'над' : 'под'} водой`);
 
   if (playerPos) {
     playerPos.x = shipSpawnPoint.x;
