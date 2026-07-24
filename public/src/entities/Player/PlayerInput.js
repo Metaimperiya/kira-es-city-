@@ -1,3 +1,7 @@
+// ============================================================
+// ВВОД (КЛАВИАТУРА, МЫШЬ, ТЕЛЕФОН)
+// ============================================================
+
 import { renderer } from '../../core/scene.js';
 
 export const PlayerInput = {
@@ -48,8 +52,7 @@ export const PlayerInput = {
     lookZone.style.cssText = 'position:absolute;top:0;right:0;width:50%;height:100%;z-index:40;touch-action:none;';
     document.body.appendChild(lookZone);
 
-    let moveId = null,
-      lookId = null;
+    let moveId = null, lookId = null;
     let lastMove = { x: 0, y: 0 };
     let lastLook = { x: 0, y: 0 };
 
@@ -81,8 +84,7 @@ export const PlayerInput = {
       }
     };
     moveZone.addEventListener('touchend', resetMove);
-    moveZone.addEventListener('touchcancel', () => { moveId = null;
-      this.touchMove = { x: 0, y: 0 }; });
+    moveZone.addEventListener('touchcancel', () => { moveId = null; this.touchMove = { x: 0, y: 0 }; });
 
     lookZone.addEventListener('touchstart', (e) => {
       e.preventDefault();
@@ -112,8 +114,7 @@ export const PlayerInput = {
       }
     };
     lookZone.addEventListener('touchend', resetLook);
-    lookZone.addEventListener('touchcancel', () => { lookId = null;
-      this.touchLook = { x: 0, y: 0 }; });
+    lookZone.addEventListener('touchcancel', () => { lookId = null; this.touchLook = { x: 0, y: 0 }; });
 
     const jumpBtn = document.getElementById('jump-btn');
     if (jumpBtn) {
