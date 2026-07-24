@@ -5,8 +5,9 @@
 import * as THREE from 'three';
 import { initScene, scene, camera, renderer } from './core/scene.js';
 import { createWorld } from './core/world.js';
-import { loadShip } from './entities/Ship.js';
+import { loadShip, mainShip } from './entities/Ship.js';
 import { createPlayer, initControls, updatePlayer, setDelta } from './entities/Player/index.js';
+import { initClickControls } from './entities/Player/clickControls.js';
 import { initSocket } from './network/socket.js';
 import { initSync, updateSync } from './network/sync.js';
 import { initChat } from './ui/chat.js';
@@ -27,6 +28,13 @@ console.log('🚀 Запуск Angelos City...');
 
   initControls();
   createPlayer();
+  
+  // 🎯 ИНИЦИАЛИЗАЦИЯ КЛИК-УПРАВЛЕНИЯ
+  if (mainShip) {
+    initClickControls([mainShip]);
+    console.log('🖱️ Клик-управление активировано');
+  }
+
   initSocket();
   initSync();
   initChat();
