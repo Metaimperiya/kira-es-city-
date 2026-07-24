@@ -1,5 +1,5 @@
 // ============================================================
-// ИГРОК (СБОРКА)
+// ИГРОК (СБОРКА) - С ПОДДЕРЖКОЙ КЛИК-УПРАВЛЕНИЯ
 // ============================================================
 
 import * as THREE from 'three';
@@ -11,10 +11,13 @@ import { PlayerCamera } from './PlayerCamera.js';
 import { sendPosition } from '../../network/sync.js';
 import { triggerRespawnVFX } from '../../ui/vfx.js';
 import { addChatMessage } from '../../ui/chat.js';
+import { updateClickMovement, cancelClickMovement, isClickMoving } from './clickControls.js';
 
 export let playerPos = { x: 0, z: 0, y: 0 };
 let playerGroup;
 let delta = 0;
+
+export let velocityY = 0;
 
 export function setDelta(value) {
   delta = value;
@@ -68,6 +71,10 @@ export function createPlayer() {
   sendPosition(playerPos.x, playerPos.y, playerPos.z, 0);
 }
 
+export function getPlayerMesh() {
+  return playerGroup;
+}
+
 export function checkWaterFall() {
   if (!playerPos) return;
 
@@ -82,6 +89,7 @@ export function checkWaterFall() {
     playerPos.z = spawn.z;
 
     PlayerController.velocityY = 0;
+    cancelClickMovement();
     sendPosition(playerPos.x, playerPos.y, playerPos.z, 0);
 
     addChatMessage('Система', '🌊 Вы упали за борт и были возвращены на корабль!', '#ff007f');
@@ -92,13 +100,25 @@ export function checkWaterFall() {
 
 export function updatePlayer() {
   const input = PlayerInput.getInput();
-  const moved = PlayerController.update(input, delta);
-  PlayerCamera.update(playerPos, input);
+  
+  // Если есть движение с клавиатуры — отменяем клик-движение
+  if (Math.abs(input.moveX) > 0.05 || Math.abs(input.moveZ) > 0.05) {
+    cancelClickMovement();
+    PlayerController.update(input, delta);
+  } else if (isClickMoving) {
+    // Движение по клику
+    updateClickMovement(delta, playerGroup);
+  } else {
+    // Стоим на месте
+    PlayerController.update({ moveX: 0, moveZ: 0, jump: input.jump }, delta);
+  }
 
+  PlayerCamera.update(playerPos, input);
   checkWaterFall();
 
-  if (moved) {
-    sendPosition(playerPos.x, playerPos.y, playerPos.z, PlayerController.getRotation());
+  // Отправка позиции, если сдвинулись
+  if (PlayerController.moved || isClickMoving) {
+    sendPosition(playerPos.x, playerPos.y, playerPos.z, playerGroup?.rotation.y || 0);
   }
 }
 
