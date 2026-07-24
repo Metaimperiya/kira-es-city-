@@ -1,3 +1,7 @@
+// ============================================================
+// ЧАТ
+// ============================================================
+
 import { sendToServer } from '../network/socket.js';
 
 export function initChat() {
@@ -10,8 +14,11 @@ export function initChat() {
   function toggleChat(show) {
     chatVisible = show !== undefined ? show : !chatVisible;
     chatEl.style.display = chatVisible ? 'flex' : 'none';
+
     if (chatVisible) {
-      if (document.pointerLockElement) document.exitPointerLock();
+      if (document.pointerLockElement) {
+        document.exitPointerLock();
+      }
       chatInput.focus();
     } else {
       chatInput.blur();
@@ -23,18 +30,27 @@ export function initChat() {
 
   chatInput?.addEventListener('keydown', (e) => {
     e.stopPropagation();
+
     if (e.key === 'Enter') {
       sendChat();
       toggleChat(false);
     }
-    if (e.key === 'Escape') toggleChat(false);
+    if (e.key === 'Escape') {
+      toggleChat(false);
+    }
   });
 
   function sendChat() {
     const text = chatInput.value.trim();
     if (!text) return;
+
     addChatMessage('Я', text, '#00ff88');
-    sendToServer({ type: 'chat', text });
+
+    sendToServer({
+      type: 'chat',
+      text: text
+    });
+
     chatInput.value = '';
   }
 
@@ -47,15 +63,19 @@ export function addChatMessage(name, text, color = '#00f3ff') {
 
   const div = document.createElement('div');
   div.className = 'msg';
+
   const nameSpan = document.createElement('span');
   nameSpan.className = 'name';
   nameSpan.style.color = color;
   nameSpan.textContent = `${name}: `;
+
   const textSpan = document.createElement('span');
   textSpan.className = 'text';
   textSpan.textContent = text;
+
   div.appendChild(nameSpan);
   div.appendChild(textSpan);
+
   chatLog.appendChild(div);
   chatLog.scrollTop = chatLog.scrollHeight;
 }
