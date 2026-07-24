@@ -1,7 +1,6 @@
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
-const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
@@ -16,8 +15,8 @@ wss.on('connection', (ws) => {
 
   players[id] = {
     x: (Math.random() - 0.5) * 10,
-    z: (Math.random() - 0.5) * 10,
     y: 1.5,
+    z: (Math.random() - 0.5) * 10,
     color: Math.floor(Math.random() * 0xffffff),
     name: 'Игрок_' + Math.random().toString(36).substr(2, 4)
   };
@@ -41,10 +40,9 @@ wss.on('connection', (ws) => {
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
-
       if (data.type === 'move' && players[id]) {
         players[id].x = data.x;
-        players[id].y = data.y !== undefined ? data.y : players[id].y;
+        players[id].y = data.y;
         players[id].z = data.z;
         players[id].rotation = data.rotation || 0;
 
@@ -52,12 +50,11 @@ wss.on('connection', (ws) => {
           type: 'playerMove',
           id: id,
           x: data.x,
-          y: players[id].y,
+          y: data.y,
           z: data.z,
           rotation: data.rotation || 0
         }, ws);
       }
-
       if (data.type === 'chat') {
         broadcast({
           type: 'chat',
@@ -67,7 +64,7 @@ wss.on('connection', (ws) => {
         }, ws);
       }
     } catch (e) {
-      console.error('Ошибка обработки сообщения:', e);
+      console.error('Ошибка:', e);
     }
   });
 
@@ -87,5 +84,5 @@ function broadcast(data, exclude) {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🚀 Сервер запущен на порту ${PORT}`);
+  console.log(`🚀 Сервер на порту ${PORT}`);
 });
