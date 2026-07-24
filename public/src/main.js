@@ -1,5 +1,5 @@
 // ============================================================
-// ГЛАВНЫЙ ФАЙЛ (С ПРАВИЛЬНЫМ ASYNC)
+// ГЛАВНЫЙ ФАЙЛ
 // ============================================================
 
 import * as THREE from 'three';
@@ -8,18 +8,22 @@ import { createWorld } from './core/world.js';
 import { loadShip } from './entities/Ship.js';
 import { createPlayer, initControls, updatePlayer, setDelta } from './entities/Player/index.js';
 import { initSocket } from './network/socket.js';
-import { initSync } from './network/sync.js';
+import { initSync, updateSync } from './network/sync.js';
 import { initChat } from './ui/chat.js';
 import { updateHUD } from './ui/hud.js';
 
 console.log('🚀 Запуск Angelos City...');
 
-// ✅ ВСЁ ЗАВОРАЧИВАЕМ В ASYNC IIFE
 (async function main() {
   initScene();
   createWorld();
-  
-  await loadShip(); // ✅ Теперь await работает
+
+  try {
+    await loadShip();
+    console.log('🚢 Корабль успешно загружен');
+  } catch (error) {
+    console.error('⚠️ Не удалось загрузить модель корабля:', error);
+  }
 
   initControls();
   createPlayer();
@@ -37,6 +41,7 @@ console.log('🚀 Запуск Angelos City...');
     const delta = Math.min(clock.getDelta(), 0.05);
     setDelta(delta);
     updatePlayer();
+    updateSync(delta);
     renderer.render(scene, camera);
   }
 
