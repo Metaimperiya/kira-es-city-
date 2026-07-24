@@ -29,10 +29,9 @@ console.log('🚀 Запуск Angelos City...');
   initControls();
   createPlayer();
   
-  // 🎯 ИНИЦИАЛИЗАЦИЯ КЛИК-УПРАВЛЕНИЯ
+  // 🎯 КЛИК-УПРАВЛЕНИЕ АВТОМАТИЧЕСКИ ВКЛЮЧАЕТСЯ ТОЛЬКО НА МОБИЛКАХ
   if (mainShip) {
     initClickControls([mainShip]);
-    console.log('🖱️ Клик-управление активировано');
   }
 
   initSocket();
