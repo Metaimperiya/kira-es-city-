@@ -1,3 +1,7 @@
+// ============================================================
+// КАМЕРА ОТ ТРЕТЬЕГО ЛИЦА
+// ============================================================
+
 import * as THREE from 'three';
 
 export const PlayerCamera = {
@@ -23,9 +27,15 @@ export const PlayerCamera = {
 
     const horizDist = this.distance * Math.cos(this.euler.x);
     const vertDist = this.distance * Math.sin(this.euler.x);
+
     const targetY = playerPos.y + 1.5;
+
     let targetCamY = targetY + vertDist;
-    if (targetCamY < 0.4) targetCamY = 0.4;
+
+    const minCameraHeight = 0.4;
+    if (targetCamY < minCameraHeight) {
+      targetCamY = minCameraHeight;
+    }
 
     const targetCamPos = new THREE.Vector3(
       playerPos.x + horizDist * Math.sin(this.euler.y),
