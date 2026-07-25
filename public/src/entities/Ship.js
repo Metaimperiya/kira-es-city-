@@ -1,5 +1,5 @@
 // ============================================================
-// ЗАМОК (OBJ + MTL) - БОЛЬШОЙ И ПОДНЯТЫЙ
+// ЗАМОК (OBJ + MTL) - УМЕНЬШЕННЫЙ В 2 РАЗА
 // ============================================================
 
 import * as THREE from 'three';
@@ -72,8 +72,8 @@ function setupShip(object) {
 
   shipContainer.add(object);
 
-  // 🚀 МАСШТАБ УВЕЛИЧЕН С 220 ДО 400
-  const TARGET_SIZE = 400;
+  // ⬇️ УМЕНЬШИЛИ В 2 РАЗА (БЫЛО 400 → СТАЛО 200)
+  const TARGET_SIZE = 200;
   const maxDim = Math.max(size.x, size.z);
   const scale = TARGET_SIZE / (maxDim || 1);
   shipContainer.scale.set(scale, scale, scale);
@@ -85,7 +85,6 @@ function setupShip(object) {
     }
   });
 
-  // 🚀 ПОДНЯТ НА 30 МЕТРОВ (чтобы точно был над водой)
   shipContainer.position.set(0, 30, 0);
 
   scene.add(shipContainer);
@@ -112,7 +111,6 @@ function setupShip(object) {
   }
 }
 
-// СКАНЕР КООРДИНАТ ПО КЛАВИШЕ P
 window.addEventListener('keydown', (e) => {
   const activeTag = document.activeElement?.tagName;
   if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
