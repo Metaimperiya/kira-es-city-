@@ -1,5 +1,5 @@
 // ============================================================
-// СЦЕНА - ЯРКИЙ ДЕНЬ
+// СЦЕНА - ЯРКИЙ ДЕНЬ + СВЕТ СНИЗУ
 // ============================================================
 
 import * as THREE from 'three';
@@ -8,8 +8,8 @@ export let scene, camera, renderer;
 
 export function initScene() {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x87CEEB); // Голубое небо
-  scene.fog = new THREE.FogExp2(0x87CEEB, 0.003); // Лёгкий туман
+  scene.background = new THREE.Color(0x87CEEB);
+  scene.fog = new THREE.FogExp2(0x87CEEB, 0.003);
 
   camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
   camera.position.set(0, 3, 8);
@@ -24,7 +24,7 @@ export function initScene() {
   renderer.toneMappingExposure = 1.5;
   document.body.prepend(renderer.domElement);
 
-  // --- СОЛНЦЕ (основной свет) ---
+  // --- СОЛНЦЕ ---
   const sunLight = new THREE.DirectionalLight(0xffeedd, 2.5);
   sunLight.position.set(50, 100, 50);
   sunLight.castShadow = true;
@@ -38,17 +38,17 @@ export function initScene() {
   sunLight.shadow.camera.bottom = -100;
   scene.add(sunLight);
 
-  // --- ЗАЛИВОЧНЫЙ СВЕТ (чтобы не было чёрных теней) ---
+  // --- ЗАЛИВОЧНЫЙ СВЕТ ---
   const fillLight = new THREE.DirectionalLight(0x4488ff, 0.6);
   fillLight.position.set(-50, 30, -50);
   scene.add(fillLight);
 
-  // --- РАССЕЯННЫЙ СВЕТ ---
-  const ambientLight = new THREE.AmbientLight(0x88aaff, 0.8);
+  // --- РАССЕЯННЫЙ СВЕТ (усилен) ---
+  const ambientLight = new THREE.AmbientLight(0x88aaff, 1.5);
   scene.add(ambientLight);
 
-  // --- СВЕТ СНИЗУ (для подсветки моделей) ---
-  const bottomLight = new THREE.PointLight(0x4488ff, 0.4, 50);
+  // --- СВЕТ СНИЗУ (для подсветки внутри замка) ---
+  const bottomLight = new THREE.PointLight(0xffaa44, 1.5, 100);
   bottomLight.position.set(0, -5, 0);
   scene.add(bottomLight);
 
