@@ -1,5 +1,5 @@
 // ============================================================
-// ЗАМОК (OBJ + MTL) - ОПУЩЕН
+// ЗАМОК (OBJ + MTL) - СВЕТЯЩИЙСЯ
 // ============================================================
 
 import * as THREE from 'three';
@@ -77,14 +77,25 @@ function setupShip(object) {
   const scale = TARGET_SIZE / (maxDim || 1);
   shipContainer.scale.set(scale, scale, scale);
 
+  // ⬇️ ДОБАВЛЯЕМ САМОСВЕЧЕНИЕ ВСЕМ МАТЕРИАЛАМ ⬇️
   object.traverse((child) => {
     if (child.isMesh) {
-      child.castShadow = true;
-      child.receiveShadow = true;
+      child.castShadow = false;      // Отключаем тени, чтобы не затемнялся
+      child.receiveShadow = false;   // Отключаем приём теней
+      
+      if (child.material) {
+        // Добавляем самосвечение, чтобы замок не был чёрным
+        child.material.emissive = new THREE.Color(0x444444);
+        child.material.emissiveIntensity = 0.5;
+        
+        // Если материал белый, делаем его ярче
+        if (child.material.color.getHex() === 0xffffff) {
+          child.material.color.setHex(0xeeeeee);
+        }
+      }
     }
   });
 
-  // ⬇️ ОПУСТИЛИ С 10 ДО 6
   shipContainer.position.set(0, 6, 0);
 
   scene.add(shipContainer);
