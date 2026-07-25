@@ -84,8 +84,8 @@ function setupShip(object) {
     }
   });
 
-  // ⬇️ ОПУСТИЛИ С 30 ДО 10
-  shipContainer.position.set(0, 10, 0);
+  // ⬇️ ОПУСТИЛИ С 10 ДО 6
+  shipContainer.position.set(0, 6, 0);
 
   scene.add(shipContainer);
   mainShip = shipContainer;
