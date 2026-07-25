@@ -1,5 +1,5 @@
 // ============================================================
-// СИНХРОНИЗАЦИЯ УДАЛЁННЫХ ИГРОКОВ (С LERP)
+// СИНХРОНИЗАЦИЯ УДАЛЁННЫХ ИГРОКОВ
 // ============================================================
 
 import * as THREE from 'three';
@@ -11,6 +11,7 @@ import { refreshHUD } from '../ui/hud.js';
 export const remotePlayers = {};
 export const remoteMeshes = {};
 export let myId = '';
+export let isSyncReady = false;
 
 function createRemotePlayerMesh(color = 0xff4488) {
   const group = new THREE.Group();
@@ -49,15 +50,18 @@ export function initSync() {
       switch (data.type) {
         case 'init':
           myId = data.myId;
+          console.log('Мой ID:', myId);
           for (const id in data.players) {
             if (id !== myId) addRemotePlayer(id, data.players[id]);
           }
           refreshHUD();
+          isSyncReady = true;
           break;
 
         case 'playerJoin':
+          console.log('👤 Новый игрок:', data.id);
           addRemotePlayer(data.id, data);
-          addChatMessage('Сервер', `Игрок ${data.id.slice(0, 4)} зашёл на корабль`, '#ffaa00');
+          addChatMessage('Сервер', `Игрок ${data.id.slice(0, 4)} зашёл`, '#ffaa00');
           refreshHUD();
           break;
 
@@ -66,6 +70,7 @@ export function initSync() {
           break;
 
         case 'playerLeave':
+          console.log('👤 Игрок ушёл:', data.id);
           removeRemotePlayer(data.id);
           addChatMessage('Сервер', `Игрок ${data.id.slice(0, 4)} вышел`, '#ff4444');
           refreshHUD();
@@ -74,6 +79,9 @@ export function initSync() {
         case 'chat':
           addChatMessage(data.name || `Игрок [${data.id.slice(0, 4)}]`, data.text, '#00f3ff');
           break;
+
+        default:
+          console.log('⚠️ Неизвестный тип:', data.type);
       }
     } catch (e) {
       console.error('Ошибка парсинга:', e);
@@ -83,51 +91,26 @@ export function initSync() {
 
 export function addRemotePlayer(id, data) {
   if (remoteMeshes[id]) return;
+  console.log('➕ Создаём Mesh для игрока:', id);
   const color = data.color || 0xff4488;
   const mesh = createRemotePlayerMesh(color);
-  
-  const startX = data.x || 0;
-  const startY = data.y || 0;
-  const startZ = data.z || 0;
-
-  mesh.position.set(startX, startY, startZ);
+  mesh.position.set(data.x || 0, data.y || 0, data.z || 0);
   scene.add(mesh);
-
   remoteMeshes[id] = mesh;
-  remotePlayers[id] = {
-    ...data,
-    targetPosition: new THREE.Vector3(startX, startY, startZ),
-    targetRotation: data.rotation || 0
-  };
+  remotePlayers[id] = data;
 }
 
 export function updateRemotePlayer(id, data) {
-  if (remotePlayers[id]) {
-    remotePlayers[id].targetPosition.set(data.x || 0, data.y || 0, data.z || 0);
+  if (remoteMeshes[id]) {
+    remoteMeshes[id].position.set(data.x || 0, data.y || 0, data.z || 0);
     if (data.rotation !== undefined) {
-      remotePlayers[id].targetRotation = data.rotation;
-    }
-  }
-}
-
-export function updateSync(delta) {
-  const lerpSpeed = 15;
-
-  for (const id in remoteMeshes) {
-    const mesh = remoteMeshes[id];
-    const player = remotePlayers[id];
-
-    if (mesh && player) {
-      mesh.position.lerp(player.targetPosition, Math.min(delta * lerpSpeed, 1));
-
-      let diff = player.targetRotation - mesh.rotation.y;
-      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      mesh.rotation.y += diff * Math.min(delta * lerpSpeed, 1);
+      remoteMeshes[id].rotation.y = data.rotation;
     }
   }
 }
 
 export function removeRemotePlayer(id) {
+  console.log('➖ Удаляем игрока:', id);
   const mesh = remoteMeshes[id];
   if (mesh) {
     mesh.traverse((child) => {
@@ -149,24 +132,26 @@ export function removeRemotePlayer(id) {
   }
 }
 
+// ============================================================
+// ОБНОВЛЕНИЕ СИНХРОНИЗАЦИИ (ИНТЕРПОЛЯЦИЯ)
+// ============================================================
+
+export function updateSync(delta) {
+  // Плавная интерполяция для удалённых игроков
+  // (пока пусто, но можно добавить Lerp)
+}
+
+// ============================================================
+// ОТПРАВКА ПОЗИЦИИ
+// ============================================================
+
 let lastSend = 0;
-let lastX = 0, lastY = 0, lastZ = 0, lastRot = 0;
 const TICK_RATE = 20;
 
 export function sendPosition(x, y, z, rotation) {
   const now = performance.now();
   if (now - lastSend < 1000 / TICK_RATE) return;
-
-  const distSq = (x - lastX) ** 2 + (y - lastY) ** 2 + (z - lastZ) ** 2;
-  const rotDiff = Math.abs((rotation || 0) - lastRot);
-
-  if (distSq < 0.0001 && rotDiff < 0.01) return;
-
   lastSend = now;
-  lastX = x;
-  lastY = y;
-  lastZ = z;
-  lastRot = rotation || 0;
 
   sendToServer({
     type: 'move',
