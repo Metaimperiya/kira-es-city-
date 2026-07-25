@@ -1,10 +1,9 @@
 // ============================================================
-// ЗАМОК + КОСТРЫ
+// ЗАМОК (GLB) - С ВСТРОЕННЫМ СВЕТОМ
 // ============================================================
 
 import * as THREE from 'three';
-import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
-import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { scene } from '../core/scene.js';
 import { playerPos } from './Player/index.js';
 import { sendPosition } from '../network/sync.js';
@@ -18,71 +17,60 @@ export let shipSpawnPoint = { x: 0, y: 5, z: 0 };
 
 export function loadShip() {
   return new Promise((resolve) => {
-    const mtlLoader = new MTLLoader();
-    mtlLoader.load(
-      '/assets/models/monu2.mtl',
-      (materials) => {
-        materials.preload();
-        const objLoader = new OBJLoader();
-        objLoader.setMaterials(materials);
-        objLoader.load(
-          '/assets/models/monu2.obj',
-          (object) => {
-            setupShip(object);
-            resolve();
-          },
-          undefined,
-          () => resolve()
-        );
+    const loader = new GLTFLoader();
+    
+    console.log('📥 Загрузка GLB модели...');
+    loader.load(
+      '/assets/models/monu2.glb',
+      (gltf) => {
+        console.log('✅ GLB модель загружена!');
+        setupShip(gltf.scene);
+        resolve();
       },
       undefined,
-      () => {
-        const objLoader = new OBJLoader();
-        objLoader.load(
-          '/assets/models/monu2.obj',
-          (object) => {
-            setupShip(object);
-            resolve();
-          },
-          undefined,
-          () => resolve()
-        );
+      (error) => {
+        console.error('❌ Ошибка загрузки GLB:', error);
+        resolve();
       }
     );
   });
 }
 
-function setupShip(object) {
+function setupShip(model) {
   const shipContainer = new THREE.Group();
   
-  const box = new THREE.Box3().setFromObject(object);
+  // Центрируем модель
+  const box = new THREE.Box3().setFromObject(model);
   const center = box.getCenter(new THREE.Vector3());
   const size = box.getSize(new THREE.Vector3());
 
-  object.position.x = -center.x;
-  object.position.z = -center.z;
-  object.position.y = -box.min.y;
+  model.position.x = -center.x;
+  model.position.z = -center.z;
+  model.position.y = -box.min.y;
 
-  shipContainer.add(object);
+  shipContainer.add(model);
 
+  // Масштабируем
   const TARGET_SIZE = 200;
   const maxDim = Math.max(size.x, size.z);
   const scale = TARGET_SIZE / (maxDim || 1);
   shipContainer.scale.set(scale, scale, scale);
 
-  object.traverse((child) => {
+  // Включаем тени
+  model.traverse((child) => {
     if (child.isMesh) {
-      child.castShadow = false;
-      child.receiveShadow = false;
+      child.castShadow = true;
+      child.receiveShadow = true;
     }
   });
 
+  // Поднимаем над водой
   shipContainer.position.set(0, 6, 0);
 
   scene.add(shipContainer);
   mainShip = shipContainer;
 
-  // --- КОСТРЫ (ставь свои координаты) ---
+  // --- КОСТРЫ (если нужны) ---
   const firePositions = [
     { x: -4.66, z: 4.81 },
     { x: 5.29, z: 3.15 },
@@ -106,7 +94,7 @@ function setupShip(object) {
     z: worldVec.z
   };
 
-  console.log(`✅ Замок загружен!`);
+  console.log(`✅ Замок загружен! Спавн: Y=${shipSpawnPoint.y.toFixed(2)}`);
 
   if (playerPos) {
     playerPos.x = shipSpawnPoint.x;
@@ -117,11 +105,25 @@ function setupShip(object) {
 }
 
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'KeyP' && mainShip && playerPos) {
+  const activeTag = document.activeElement?.tagName;
+  if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+
+  const key = e.key.toLowerCase();
+  if ((e.code === 'KeyP' || key === 'p' || key === 'з') && mainShip && playerPos) {
     mainShip.updateMatrixWorld(true);
-    const localVec = new THREE.Vector3(playerPos.x, playerPos.y, playerPos.z);
-    const worldVec = mainShip.worldToLocal(localVec);
-    console.log(`📍 x: ${worldVec.x.toFixed(2)}, y: ${worldVec.y.toFixed(2)}, z: ${worldVec.z.toFixed(2)}`);
+    
+    const playerWorldVec = new THREE.Vector3(playerPos.x, playerPos.y, playerPos.z);
+    const shipLocalVec = mainShip.worldToLocal(playerWorldVec.clone());
+
+    const coordsString = `x: ${shipLocalVec.x.toFixed(2)}, y: ${shipLocalVec.y.toFixed(2)}, z: ${shipLocalVec.z.toFixed(2)}`;
+    
+    console.log('%c 🎯 ЛОКАЛЬНАЯ ТОЧКА ЗАМКА:', 'background: #111; color: #00f3ff; font-size: 14px; font-weight: bold;');
+    console.log(coordsString);
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(coordsString);
+      console.log('📋 Координаты скопированы в буфер обмена!');
+    }
   }
 });
 
