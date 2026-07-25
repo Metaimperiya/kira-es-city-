@@ -1,5 +1,5 @@
 // ============================================================
-// ЗАМОК / КОРАБЛЬ (OBJ + MTL) - ПОДНЯТ
+// ЗАМОК (OBJ + MTL) - БОЛЬШОЙ И ПОДНЯТЫЙ
 // ============================================================
 
 import * as THREE from 'three';
@@ -11,9 +11,7 @@ import { sendPosition } from '../network/sync.js';
 
 export let mainShip = null;
 
-// ТОЧКА СПАВНА НА ВЕРШИНЕ (СКОРРЕКТИРУЙ ПОСЛЕ ЗАГРУЗКИ ЧЕРЕЗ КЛАВИШУ P)
 export const SPAWN_LOCAL = { x: 0.04, y: 12.50, z: 2.64 };
-
 export let shipSpawnPoint = { x: 0, y: 5, z: 0 };
 
 export function loadShip() {
@@ -74,7 +72,8 @@ function setupShip(object) {
 
   shipContainer.add(object);
 
-  const TARGET_SIZE = 220;
+  // 🚀 МАСШТАБ УВЕЛИЧЕН С 220 ДО 400
+  const TARGET_SIZE = 400;
   const maxDim = Math.max(size.x, size.z);
   const scale = TARGET_SIZE / (maxDim || 1);
   shipContainer.scale.set(scale, scale, scale);
@@ -86,8 +85,8 @@ function setupShip(object) {
     }
   });
 
-  // ✅ ПОДНЯТ (число = высота подъёма над водой)
-  shipContainer.position.set(0, 15, 0);
+  // 🚀 ПОДНЯТ НА 30 МЕТРОВ (чтобы точно был над водой)
+  shipContainer.position.set(0, 30, 0);
 
   scene.add(shipContainer);
   mainShip = shipContainer;
@@ -103,7 +102,7 @@ function setupShip(object) {
     z: worldVec.z
   };
 
-  console.log(`✅ Замок загружен! Спавн: X=${shipSpawnPoint.x.toFixed(2)}, Y=${shipSpawnPoint.y.toFixed(2)}, Z=${shipSpawnPoint.z.toFixed(2)}`);
+  console.log(`✅ Замок загружен! Масштаб: ${TARGET_SIZE}, Спавн: Y=${shipSpawnPoint.y.toFixed(2)}`);
 
   if (playerPos) {
     playerPos.x = shipSpawnPoint.x;
