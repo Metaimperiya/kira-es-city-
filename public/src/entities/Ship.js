@@ -1,5 +1,5 @@
 // ============================================================
-// ЗАМОК (OBJ + MTL) - СВЕТЯЩИЙСЯ
+// ЗАМОК (OBJ + MTL) + КОСТРЫ
 // ============================================================
 
 import * as THREE from 'three';
@@ -8,8 +8,10 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { scene } from '../core/scene.js';
 import { playerPos } from './Player/index.js';
 import { sendPosition } from '../network/sync.js';
+import { Bonfire } from './Bonfire.js';
 
 export let mainShip = null;
+export let bonfires = [];
 
 export const SPAWN_LOCAL = { x: 0.04, y: 12.50, z: 2.64 };
 export let shipSpawnPoint = { x: 0, y: 5, z: 0 };
@@ -77,21 +79,13 @@ function setupShip(object) {
   const scale = TARGET_SIZE / (maxDim || 1);
   shipContainer.scale.set(scale, scale, scale);
 
-  // ⬇️ ДОБАВЛЯЕМ САМОСВЕЧЕНИЕ ВСЕМ МАТЕРИАЛАМ ⬇️
   object.traverse((child) => {
     if (child.isMesh) {
-      child.castShadow = false;      // Отключаем тени, чтобы не затемнялся
-      child.receiveShadow = false;   // Отключаем приём теней
-      
+      child.castShadow = false;
+      child.receiveShadow = false;
       if (child.material) {
-        // Добавляем самосвечение, чтобы замок не был чёрным
         child.material.emissive = new THREE.Color(0x444444);
-        child.material.emissiveIntensity = 0.5;
-        
-        // Если материал белый, делаем его ярче
-        if (child.material.color.getHex() === 0xffffff) {
-          child.material.color.setHex(0xeeeeee);
-        }
+        child.material.emissiveIntensity = 0.3;
       }
     }
   });
@@ -100,6 +94,21 @@ function setupShip(object) {
 
   scene.add(shipContainer);
   mainShip = shipContainer;
+
+  // --- СТАВИМ КОСТРЫ (используй координаты, которые ты получил) ---
+  // Координаты из твоего сообщения:
+  const firePositions = [
+    { x: -4.66, z: 4.81 },
+    { x: 5.29, z: 3.15 },
+    { x: 2.67, z: -9.27 }
+  ];
+
+  firePositions.forEach((pos) => {
+    const y = 6; // высота костра над водой
+    const fire = new Bonfire(pos.x, y, pos.z, 1.2);
+    bonfires.push(fire);
+    console.log(`🔥 Костёр поставлен на X=${pos.x}, Z=${pos.z}`);
+  });
 
   shipContainer.updateMatrixWorld(true);
 
