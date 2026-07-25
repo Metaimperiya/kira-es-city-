@@ -1,5 +1,5 @@
 // ============================================================
-// ЗАМОК (OBJ + MTL) - УМЕНЬШЕННЫЙ В 2 РАЗА
+// ЗАМОК (OBJ + MTL) - ОПУЩЕН
 // ============================================================
 
 import * as THREE from 'three';
@@ -72,7 +72,6 @@ function setupShip(object) {
 
   shipContainer.add(object);
 
-  // ⬇️ УМЕНЬШИЛИ В 2 РАЗА (БЫЛО 400 → СТАЛО 200)
   const TARGET_SIZE = 200;
   const maxDim = Math.max(size.x, size.z);
   const scale = TARGET_SIZE / (maxDim || 1);
@@ -85,7 +84,8 @@ function setupShip(object) {
     }
   });
 
-  shipContainer.position.set(0, 30, 0);
+  // ⬇️ ОПУСТИЛИ С 30 ДО 10
+  shipContainer.position.set(0, 10, 0);
 
   scene.add(shipContainer);
   mainShip = shipContainer;
