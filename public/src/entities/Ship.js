@@ -1,5 +1,5 @@
 // ============================================================
-// ЗАМОК (OBJ + MTL) + КОСТРЫ
+// ЗАМОК + КОСТРЫ
 // ============================================================
 
 import * as THREE from 'three';
@@ -19,14 +19,12 @@ export let shipSpawnPoint = { x: 0, y: 5, z: 0 };
 export function loadShip() {
   return new Promise((resolve) => {
     const mtlLoader = new MTLLoader();
-    
     mtlLoader.load(
       '/assets/models/monu2.mtl',
       (materials) => {
         materials.preload();
         const objLoader = new OBJLoader();
         objLoader.setMaterials(materials);
-
         objLoader.load(
           '/assets/models/monu2.obj',
           (object) => {
@@ -34,15 +32,11 @@ export function loadShip() {
             resolve();
           },
           undefined,
-          (error) => {
-            console.error('❌ Ошибка загрузки OBJ:', error);
-            resolve();
-          }
+          () => resolve()
         );
       },
       undefined,
-      (error) => {
-        console.error('❌ Ошибка загрузки MTL:', error);
+      () => {
         const objLoader = new OBJLoader();
         objLoader.load(
           '/assets/models/monu2.obj',
@@ -51,10 +45,7 @@ export function loadShip() {
             resolve();
           },
           undefined,
-          (error) => {
-            console.error('❌ Ошибка загрузки OBJ (без MTL):', error);
-            resolve();
-          }
+          () => resolve()
         );
       }
     );
@@ -83,10 +74,6 @@ function setupShip(object) {
     if (child.isMesh) {
       child.castShadow = false;
       child.receiveShadow = false;
-      if (child.material) {
-        child.material.emissive = new THREE.Color(0x444444);
-        child.material.emissiveIntensity = 0.3;
-      }
     }
   });
 
@@ -95,8 +82,7 @@ function setupShip(object) {
   scene.add(shipContainer);
   mainShip = shipContainer;
 
-  // --- СТАВИМ КОСТРЫ (используй координаты, которые ты получил) ---
-  // Координаты из твоего сообщения:
+  // --- КОСТРЫ (ставь свои координаты) ---
   const firePositions = [
     { x: -4.66, z: 4.81 },
     { x: 5.29, z: 3.15 },
@@ -104,10 +90,9 @@ function setupShip(object) {
   ];
 
   firePositions.forEach((pos) => {
-    const y = 6; // высота костра над водой
-    const fire = new Bonfire(pos.x, y, pos.z, 1.2);
+    const fire = new Bonfire(pos.x, 6, pos.z);
     bonfires.push(fire);
-    console.log(`🔥 Костёр поставлен на X=${pos.x}, Z=${pos.z}`);
+    console.log(`🔥 Костёр на X=${pos.x}, Z=${pos.z}`);
   });
 
   shipContainer.updateMatrixWorld(true);
@@ -121,7 +106,7 @@ function setupShip(object) {
     z: worldVec.z
   };
 
-  console.log(`✅ Замок загружен! Масштаб: ${TARGET_SIZE}, Спавн: Y=${shipSpawnPoint.y.toFixed(2)}`);
+  console.log(`✅ Замок загружен!`);
 
   if (playerPos) {
     playerPos.x = shipSpawnPoint.x;
@@ -132,25 +117,11 @@ function setupShip(object) {
 }
 
 window.addEventListener('keydown', (e) => {
-  const activeTag = document.activeElement?.tagName;
-  if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
-
-  const key = e.key.toLowerCase();
-  if ((e.code === 'KeyP' || key === 'p' || key === 'з') && mainShip && playerPos) {
+  if (e.code === 'KeyP' && mainShip && playerPos) {
     mainShip.updateMatrixWorld(true);
-    
-    const playerWorldVec = new THREE.Vector3(playerPos.x, playerPos.y, playerPos.z);
-    const shipLocalVec = mainShip.worldToLocal(playerWorldVec.clone());
-
-    const coordsString = `x: ${shipLocalVec.x.toFixed(2)}, y: ${shipLocalVec.y.toFixed(2)}, z: ${shipLocalVec.z.toFixed(2)}`;
-    
-    console.log('%c 🎯 ЛОКАЛЬНАЯ ТОЧКА ЗАМКА:', 'background: #111; color: #00f3ff; font-size: 14px; font-weight: bold;');
-    console.log(coordsString);
-
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(coordsString);
-      console.log('📋 Координаты скопированы в буфер обмена!');
-    }
+    const localVec = new THREE.Vector3(playerPos.x, playerPos.y, playerPos.z);
+    const worldVec = mainShip.worldToLocal(localVec);
+    console.log(`📍 x: ${worldVec.x.toFixed(2)}, y: ${worldVec.y.toFixed(2)}, z: ${worldVec.z.toFixed(2)}`);
   }
 });
 
