@@ -1,5 +1,5 @@
 // ============================================================
-// СЦЕНА - ЯРКИЙ ДЕНЬ (СОЛНЦЕ СВЕТИТ НА ЗАМОК)
+// СЦЕНА - ЯРКИЙ ДЕНЬ (СОЛНЦЕ НАД ЗАМКОМ)
 // ============================================================
 
 import * as THREE from 'three';
@@ -24,9 +24,10 @@ export function initScene() {
   renderer.toneMappingExposure = 1.8;
   document.body.prepend(renderer.domElement);
 
-  // --- ГЛАВНЫЙ СВЕТ (солнце) — светит сверху-сбоку ---
-  const sunLight = new THREE.DirectionalLight(0xffeedd, 3.0);
-  sunLight.position.set(30, 80, 30);
+  // --- ГЛАВНЫЙ СВЕТ (солнце) — прямо над замком ---
+  const sunLight = new THREE.DirectionalLight(0xffeedd, 3.5);
+  sunLight.position.set(0, 80, 0); // Прямо сверху
+  sunLight.target.position.set(0, 0, 0);
   sunLight.castShadow = true;
   sunLight.shadow.mapSize.width = 2048;
   sunLight.shadow.mapSize.height = 2048;
@@ -37,18 +38,19 @@ export function initScene() {
   sunLight.shadow.camera.top = 100;
   sunLight.shadow.camera.bottom = -100;
   scene.add(sunLight);
+  scene.add(sunLight.target);
 
   // --- ЗАЛИВОЧНЫЙ СВЕТ (чтоб тени не были чёрными) ---
-  const fillLight = new THREE.DirectionalLight(0x88aaff, 0.6);
-  fillLight.position.set(-30, 20, -30);
+  const fillLight = new THREE.DirectionalLight(0x88aaff, 0.8);
+  fillLight.position.set(-20, 20, -20);
   scene.add(fillLight);
 
   // --- РАССЕЯННЫЙ СВЕТ ---
-  const ambientLight = new THREE.AmbientLight(0x88aaff, 1.2);
+  const ambientLight = new THREE.AmbientLight(0x88aaff, 1.5);
   scene.add(ambientLight);
 
   // --- СВЕТ СНИЗУ (подсветка замка изнутри) ---
-  const bottomLight = new THREE.PointLight(0xffaa44, 2.0, 100);
+  const bottomLight = new THREE.PointLight(0xffaa44, 2.5, 100);
   bottomLight.position.set(0, -5, 0);
   scene.add(bottomLight);
 
@@ -56,8 +58,8 @@ export function initScene() {
   const sunGeo = new THREE.SphereGeometry(8, 16, 16);
   const sunMat = new THREE.MeshBasicMaterial({ color: 0xffff88 });
   const sunMesh = new THREE.Mesh(sunGeo, sunMat);
-  sunMesh.position.set(50, 100, 50);
+  sunMesh.position.set(0, 120, 0);
   scene.add(sunMesh);
 
-  console.log('☀️ Солнце светит на замок!');
+  console.log('☀️ Солнце прямо над замком!');
 }
