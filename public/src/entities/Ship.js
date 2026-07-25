@@ -1,5 +1,5 @@
 // ============================================================
-// КОРАБЛЬ (OBJ + MTL) - ОПУСТИЛ
+// ЗАМОК / КОРАБЛЬ (OBJ + MTL) - ПОДНЯТ
 // ============================================================
 
 import * as THREE from 'three';
@@ -11,6 +11,7 @@ import { sendPosition } from '../network/sync.js';
 
 export let mainShip = null;
 
+// ТОЧКА СПАВНА НА ВЕРШИНЕ (СКОРРЕКТИРУЙ ПОСЛЕ ЗАГРУЗКИ ЧЕРЕЗ КЛАВИШУ P)
 export const SPAWN_LOCAL = { x: 0.04, y: 12.50, z: 2.64 };
 
 export let shipSpawnPoint = { x: 0, y: 5, z: 0 };
@@ -85,10 +86,8 @@ function setupShip(object) {
     }
   });
 
-  const shipHeight = size.y * scale;
-  
-  // ОПУСТИЛ (коэффициент 0.37)
-  shipContainer.position.set(0, -shipHeight * 0.37, 0);
+  // ✅ ПОДНЯТ (число = высота подъёма над водой)
+  shipContainer.position.set(0, 15, 0);
 
   scene.add(shipContainer);
   mainShip = shipContainer;
@@ -104,7 +103,7 @@ function setupShip(object) {
     z: worldVec.z
   };
 
-  console.log(`✅ Корабль загружен! Спавн: X=${shipSpawnPoint.x.toFixed(2)}, Y=${shipSpawnPoint.y.toFixed(2)}, Z=${shipSpawnPoint.z.toFixed(2)}`);
+  console.log(`✅ Замок загружен! Спавн: X=${shipSpawnPoint.x.toFixed(2)}, Y=${shipSpawnPoint.y.toFixed(2)}, Z=${shipSpawnPoint.z.toFixed(2)}`);
 
   if (playerPos) {
     playerPos.x = shipSpawnPoint.x;
@@ -114,6 +113,7 @@ function setupShip(object) {
   }
 }
 
+// СКАНЕР КООРДИНАТ ПО КЛАВИШЕ P
 window.addEventListener('keydown', (e) => {
   const activeTag = document.activeElement?.tagName;
   if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
@@ -127,7 +127,7 @@ window.addEventListener('keydown', (e) => {
 
     const coordsString = `x: ${shipLocalVec.x.toFixed(2)}, y: ${shipLocalVec.y.toFixed(2)}, z: ${shipLocalVec.z.toFixed(2)}`;
     
-    console.log('%c 🎯 ЛОКАЛЬНАЯ ТОЧКА КОРАБЛЯ:', 'background: #111; color: #00f3ff; font-size: 14px; font-weight: bold;');
+    console.log('%c 🎯 ЛОКАЛЬНАЯ ТОЧКА ЗАМКА:', 'background: #111; color: #00f3ff; font-size: 14px; font-weight: bold;');
     console.log(coordsString);
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
