@@ -1,15 +1,36 @@
-import * as THREE from 'three';
-import { scene } from '../../core/scene.js';
+// ============================================================
+// ИГРОК (X-RAY GHOST)
+// ============================================================
 
+import * as THREE from 'three';
+import { scene, camera } from '../../core/scene.js';
+import { teleportToShip } from '../Ship.js';
+import { PlayerInput } from './PlayerInput.js';
+import { PlayerController } from './PlayerController.js';
+import { PlayerCamera } from './PlayerCamera.js';
+import { sendPosition } from '../../network/sync.js';
+import { triggerRespawnVFX } from '../../ui/vfx.js';
+import { addChatMessage } from '../../ui/chat.js';
+import { updateClickMovement, cancelClickMovement, isClickMoving, isMobileDevice } from './clickControls.js';
+
+export let playerPos = { x: 0, z: 0, y: 0 };
 let playerGroup;
+let delta = 0;
+export let velocityY = 0;
+let elapsedTime = 0;
+
+// ============================================================
+// ПАРАМЕТРЫ ПРИЗРАКА
+// ============================================================
+const PARTICLE_COUNT = 18000;
 let particleGeo;
 let particlePositions;
 let particleBasePositions;
-let particleCount = 18000; // Оптимальный баланс визуализации и FPS
-let currentDelta = 0;
-let elapsedTime = 0;
+let particleColors;
 
-// Вспомогательная функция генерирует текстуры символов
+// ============================================================
+// ТЕКСТУРЫ СИМВОЛОВ
+// ============================================================
 function makeTexture(char) {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
@@ -24,6 +45,12 @@ function makeTexture(char) {
   return new THREE.CanvasTexture(c);
 }
 
+const glyphs = '01XYZSYS_ERR⌘⚡☠∆ΞΨΩµ§#@&%*+=-:;<>█▓▒░'.split('');
+const textures = glyphs.map(g => makeTexture(g));
+
+// ============================================================
+// МАСКА ЛИЦА (дырки)
+// ============================================================
 function inFace(x, y, z) {
   if (Math.hypot(x + 14, y - 97, z - 30) < 7) return true;
   if (Math.hypot(x - 14, y - 97, z - 30) < 7) return true;
@@ -34,25 +61,20 @@ function inFace(x, y, z) {
   return false;
 }
 
-export function setDelta(delta) {
-  currentDelta = delta;
-}
-
-export function createPlayer() {
-  playerGroup = new THREE.Group();
-
-  const glyphs = '01XYZSYS_ERR⌘⚡☠∆ΞΨΩµ§#@&%*+=-:;<>█▓▒░'.split('');
-  const textures = glyphs.map(g => makeTexture(g));
-
+// ============================================================
+// ГЕНЕРАЦИЯ ПРИЗРАКА
+// ============================================================
+function generateGhost() {
   particleGeo = new THREE.BufferGeometry();
-  particlePositions = new Float32Array(particleCount * 3);
-  particleBasePositions = new Float32Array(particleCount * 3);
-  const colors = new Float32Array(particleCount * 3);
+  particlePositions = new Float32Array(PARTICLE_COUNT * 3);
+  particleBasePositions = new Float32Array(PARTICLE_COUNT * 3);
+  particleColors = new Float32Array(PARTICLE_COUNT * 3);
 
   const colSkin = new THREE.Color(0x0055ff);
   const colBone = new THREE.Color(0x00ffff);
+  const colBrain = new THREE.Color(0xff0088);
 
-  for (let i = 0; i < particleCount; i++) {
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
     let x = 0, y = 0, z = 0;
     const rnd = Math.random();
 
@@ -65,7 +87,6 @@ export function createPlayer() {
         x = r * Math.sin(v) * Math.cos(u);
         y = 105 + r * Math.sin(v) * Math.sin(u) * 1.1;
         z = r * Math.cos(v);
-
         if (inFace(x, y, z)) {
           const u2 = Math.random() * Math.PI * 2;
           const v2 = Math.acos(2 * Math.random() - 1);
@@ -82,66 +103,154 @@ export function createPlayer() {
         x = Math.cos(a) * r;
         y = 10 + h * 75;
         z = Math.sin(a) * (r * 0.6);
+      } else if (part < 0.7) {
+        const side = Math.random() > 0.5 ? 1 : -1;
+        const p = Math.random();
+        x = side * (32 + p * 5 + Math.random() * 4);
+        y = 75 - p * 65 + Math.random() * 6;
+        z = (Math.random() - 0.5) * 12;
       } else {
         const side = Math.random() > 0.5 ? 1 : -1;
         const p = Math.random();
+        const knee = Math.sin(p * Math.PI) * 12;
         x = side * (14 + p * 8 + Math.random() * 4);
         y = 10 - p * 90 + Math.random() * 6;
-        z = (Math.random() - 0.5) * 10;
+        z = knee + (Math.random() - 0.5) * 10;
+        if (p > 0.78) {
+          z += 16 + Math.random() * 6;
+          x += side * (3 + Math.random() * 4);
+        }
       }
-      colors[i * 3] = colSkin.r;
-      colors[i * 3 + 1] = colSkin.g;
-      colors[i * 3 + 2] = colSkin.b;
+      particleColors[i * 3] = colSkin.r;
+      particleColors[i * 3 + 1] = colSkin.g;
+      particleColors[i * 3 + 2] = colSkin.b;
     } else {
-      x = (Math.random() - 0.5) * 10;
-      y = Math.random() * 100;
-      z = (Math.random() - 0.5) * 10;
-      colors[i * 3] = colBone.r;
-      colors[i * 3 + 1] = colBone.g;
-      colors[i * 3 + 2] = colBone.b;
+      const skel = Math.random();
+      if (skel < 0.15) {
+        const u = Math.random() * Math.PI * 2;
+        const v = Math.acos(2 * Math.random() - 1);
+        const r = 11 + Math.sin(u * 8) * Math.cos(v * 8) * 2;
+        x = r * Math.sin(v) * Math.cos(u) * 0.8;
+        y = 114 + r * Math.sin(v) * Math.sin(u) * 0.8;
+        z = r * Math.cos(v) * 0.8;
+        particleColors[i * 3] = colBrain.r;
+        particleColors[i * 3 + 1] = colBrain.g;
+        particleColors[i * 3 + 2] = colBrain.b;
+      } else if (skel < 0.45) {
+        const ribIndex = Math.floor(Math.random() * 7);
+        const ribY = 32 + ribIndex * 6.5;
+        const side = Math.random() > 0.5 ? 1 : -1;
+        const t = Math.random();
+        const angle = t * Math.PI;
+        const widthX = 18 - ribIndex * 0.8;
+        const depthZ = 12 - ribIndex * 0.5;
+        x = side * Math.sin(angle) * widthX;
+        y = ribY - Math.sin(t * Math.PI) * 2;
+        z = -6 + Math.cos(angle) * depthZ;
+        particleColors[i * 3] = colBone.r;
+        particleColors[i * 3 + 1] = colBone.g;
+        particleColors[i * 3 + 2] = colBone.b;
+      } else {
+        const side = Math.random() > 0.5 ? 1 : -1;
+        const p = Math.random();
+        x = side * (14 + p * 8 + Math.random() * 3);
+        y = 5 - p * 85 + Math.random() * 4;
+        z = (Math.random() - 0.5) * 10;
+        particleColors[i * 3] = colBone.r;
+        particleColors[i * 3 + 1] = colBone.g;
+        particleColors[i * 3 + 2] = colBone.b;
+      }
     }
 
     particlePositions[i * 3] = x;
     particlePositions[i * 3 + 1] = y - 10;
     particlePositions[i * 3 + 2] = z;
-
     particleBasePositions[i * 3] = x;
     particleBasePositions[i * 3 + 1] = y - 10;
     particleBasePositions[i * 3 + 2] = z;
   }
 
   particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-  particleGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  particleGeo.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
+}
+
+// ============================================================
+// ЭКСПОРТЫ
+// ============================================================
+
+export function setDelta(value) {
+  delta = value;
+}
+
+export function initControls() {
+  PlayerInput.init();
+  PlayerCamera.init(camera);
+}
+
+export function createPlayer() {
+  playerGroup = new THREE.Group();
+  scene.add(playerGroup);
+
+  // Генерируем призрака
+  generateGhost();
 
   const material = new THREE.PointsMaterial({
-    size: 0.12, // Корректный размер для масштабной сетки сцены
+    size: 0.12,
     map: textures[0],
     transparent: true,
     opacity: 0.85,
     vertexColors: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
+    sizeAttenuation: true,
   });
 
   const cloud = new THREE.Points(particleGeo, material);
-  
-  // Уменьшаем исходную модель (оригинальные координаты уходят на 100+ единиц вверх)
   cloud.scale.set(0.015, 0.015, 0.015);
-  
   playerGroup.add(cloud);
-  scene.add(playerGroup);
 
+  // Спавн на корабле
+  const spawn = teleportToShip();
+  if (spawn) {
+    playerPos.x = spawn.x;
+    playerPos.y = spawn.y;
+    playerPos.z = spawn.z;
+  }
+
+  playerGroup.position.set(playerPos.x, playerPos.y, playerPos.z);
+  PlayerController.init(playerGroup, playerPos);
+
+  sendPosition(playerPos.x, playerPos.y, playerPos.z, 0);
+}
+
+export function getPlayerMesh() {
   return playerGroup;
+}
+
+export function checkWaterFall() {
+  if (!playerPos) return;
+  const WATER_LEVEL = -1.5;
+  if (playerPos.y < WATER_LEVEL) {
+    triggerRespawnVFX('#00f3ff');
+    const spawn = teleportToShip();
+    playerPos.x = spawn.x;
+    playerPos.y = spawn.y;
+    playerPos.z = spawn.z;
+    PlayerController.velocityY = 0;
+    cancelClickMovement();
+    sendPosition(playerPos.x, playerPos.y, playerPos.z, 0);
+    addChatMessage('Система', '🌊 Вы упали за борт и были возвращены на корабль!', '#ff007f');
+  }
 }
 
 export function updatePlayer() {
   if (!particleGeo) return;
 
-  elapsedTime += currentDelta;
+  elapsedTime += delta;
 
-  // Анимация колыхания/дыхания частичек
+  // Анимация дыхания/колыхания
   const positions = particleGeo.attributes.position;
-  for (let i = 0; i < particleCount; i++) {
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
     const bx = particleBasePositions[i * 3];
     const by = particleBasePositions[i * 3 + 1];
     const bz = particleBasePositions[i * 3 + 2];
@@ -154,7 +263,27 @@ export function updatePlayer() {
   }
   positions.needsUpdate = true;
 
-  // Здесь остаётся твоя стандартная логика передвижения игрока/камеры...
+  // Управление
+  const input = PlayerInput.getInput();
+  const isMobile = isMobileDevice();
+
+  if (Math.abs(input.moveX) > 0.05 || Math.abs(input.moveZ) > 0.05) {
+    cancelClickMovement();
+    PlayerController.update(input, delta);
+  } else if (isMobile && isClickMoving) {
+    updateClickMovement(delta, playerGroup);
+  } else {
+    PlayerController.update({ moveX: 0, moveZ: 0, jump: input.jump }, delta);
+  }
+
+  PlayerCamera.update(playerPos, input);
+  checkWaterFall();
+
+  if (PlayerController.moved || isClickMoving) {
+    sendPosition(playerPos.x, playerPos.y, playerPos.z, playerGroup?.rotation.y || 0);
+  }
 }
 
-export function initControls() { /* Твой код управления */ }
+export function getPlayerPos() {
+  return playerPos;
+}
