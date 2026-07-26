@@ -1,5 +1,5 @@
 // ============================================================
-// ИГРОК (X-RAY GHOST) — С АНИМАЦИЕЙ ХОДЬБЫ
+// ИГРОК (X-RAY GHOST) — УМЕНЬШЕННЫЙ
 // ============================================================
 
 import * as THREE from 'three';
@@ -207,8 +207,10 @@ export function createPlayer() {
   });
 
   const cloud = new THREE.Points(particleGeo, material);
-  cloud.scale.set(0.015, 0.015, 0.015);
-  cloud.position.y = 1.35;
+  
+  // ⬇️ УМЕНЬШЕНО В 2 РАЗА (было 0.015 → стало 0.0075)
+  cloud.scale.set(0.0075, 0.0075, 0.0075);
+  cloud.position.y = 0.7; // тоже уменьшили в 2 раза
 
   playerGroup.add(cloud);
 
@@ -276,7 +278,7 @@ export function updatePlayer() {
       continue;
     }
 
-    // 🌬️ ДЫХАНИЕ (мелкая пульсация)
+    // 🌬️ ДЫХАНИЕ
     const breath = Math.sin(elapsedTime * 1.7 + by * 0.04) * 1.2 + Math.sin(elapsedTime * 0.9 + bx * 0.03) * 0.8;
     const breathY = Math.cos(elapsedTime * 1.4 + bx * 0.04) * 1.2 + Math.sin(elapsedTime * 1.1 + bz * 0.03) * 0.8;
     const breathZ = Math.sin(elapsedTime * 1.6 + bz * 0.04) * 1.2 + Math.cos(elapsedTime * 0.8 + by * 0.03) * 0.8;
@@ -284,19 +286,19 @@ export function updatePlayer() {
     let walkX = 0, walkY = 0, walkZ = 0;
 
     if (isMoving) {
-      // 🦵 НОГИ (Y < 20) — шагают в противофазе
+      // 🦵 НОГИ
       if (by < 20) {
         const legSide = bx > 0 ? 1 : -1;
         walkZ = legSide * walkSin * 15;
         walkY = Math.max(0, legSide * walkSin) * 6;
       }
-      // 🖐️ РУКИ (Y > 50) — качаются в противофазе с ногами
+      // 🖐️ РУКИ
       else if (by > 50 && Math.abs(bx) > 18) {
         const armSide = bx > 0 ? 1 : -1;
         walkZ = -armSide * walkSin * 12;
         walkX = -armSide * Math.abs(walkSin) * 2;
       }
-      // 🎽 ТОРС — покачивается
+      // 🎽 ТОРС
       else {
         walkY = Math.abs(walkSin) * 2;
         walkX = walkCos * 1.5;
