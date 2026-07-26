@@ -1,13 +1,8 @@
 // ============================================================
-// КИБЕРПАНК-ГОРОД (ПЕРЕНЕСЁН ИЗ ДЕМКИ)
+// КИБЕРПАНК-ГОРОД (БЕЗ ПОСТ-ЭФФЕКТОВ)
 // ============================================================
 
 import * as THREE from 'three';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { Line2 } from 'three/addons/lines/Line2.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
@@ -19,15 +14,11 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
 // ============================================================
 
 const lineMaterials = [];
-const neonMaterials = [];
-const flameMaterials = [];
 
 function registerLineMaterial(mat) {
   mat.resolution.set(window.innerWidth, window.innerHeight);
   mat.depthWrite = false;
   mat.transparent = true;
-  mat.userData.baseOpacity = mat.opacity ?? 1;
-  mat.userData.baseLinewidth = mat.linewidth ?? 2.5;
   lineMaterials.push(mat);
   return mat;
 }
@@ -51,10 +42,7 @@ function createSolidMaterial(colorHex, metalness = 0.8, roughness = 0.25, opacit
     metalness,
     roughness,
     transparent: true,
-    opacity,
-    polygonOffset: true,
-    polygonOffsetFactor: 1.5,
-    polygonOffsetUnits: 1.5
+    opacity
   });
 }
 
@@ -72,16 +60,6 @@ function createSolidWithEdges(geometry, solidMaterial, edgeMaterial) {
   return group;
 }
 
-function edgesToLineSegments(geometry, material, threshold = 10) {
-  const edges = new THREE.EdgesGeometry(geometry, threshold);
-  const positions = Array.from(edges.attributes.position.array);
-  const g = new LineSegmentsGeometry();
-  g.setPositions(positions);
-  const lines = new LineSegments2(g, material);
-  lines.computeLineDistances();
-  return lines;
-}
-
 function pointsToLine2(points, material) {
   const flat = [];
   for (const p of points) flat.push(p.x, p.y, p.z);
@@ -90,39 +68,6 @@ function pointsToLine2(points, material) {
   const line = new Line2(g, material);
   line.computeLineDistances();
   return line;
-}
-
-function segmentsToLineSegments(segmentsFlatArray, material) {
-  const g = new LineSegmentsGeometry();
-  g.setPositions(segmentsFlatArray);
-  const lines = new LineSegments2(g, material);
-  lines.computeLineDistances();
-  return lines;
-}
-
-function createGlowTexture(size = 256, mode = "cyan") {
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  const g = ctx.createRadialGradient(size * 0.5, size * 0.5, 0, size * 0.5, size * 0.5, size * 0.5);
-  if (mode === "fire") {
-    g.addColorStop(0.0, 'rgba(255,255,255,1.0)');
-    g.addColorStop(0.12, 'rgba(255,218,95,0.95)');
-    g.addColorStop(0.36, 'rgba(255,88,26,0.62)');
-    g.addColorStop(0.72, 'rgba(255,42,133,0.25)');
-    g.addColorStop(1.0, 'rgba(0,0,0,0.0)');
-  } else {
-    g.addColorStop(0.0, 'rgba(255,255,255,1.0)');
-    g.addColorStop(0.15, 'rgba(0,240,255,0.92)');
-    g.addColorStop(0.45, 'rgba(138,43,226,0.32)');
-    g.addColorStop(1.0, 'rgba(0,0,0,0.0)');
-  }
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, size, size);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
 }
 
 function makeRandom(seed = 123) {
@@ -179,77 +124,29 @@ function makeNeonMeshMaterial(colorA, colorB) {
         float moon = clamp(dot(normalize(vNormal), normalize(vec3(-0.55, 0.75, -0.36))) * 0.5 + 0.5, 0.0, 1.0);
         vec3 base = mix(colorA, colorB, n);
         base *= 0.16 + moon * 0.58;
-        vec2 gridUV = fract(vWorld.xz * 0.25);
-        float lineW = 0.028;
-        float gridX = 1.0 - smoothstep(0.0, lineW, gridUV.x) * smoothstep(1.0, 1.0 - lineW, gridUV.x);
-        float gridY = 1.0 - smoothstep(0.0, lineW, gridUV.y) * smoothstep(1.0, 1.0 - lineW, gridUV.y);
-        float grid = max(gridX, gridY);
-        float distFade = max(0.0, 1.0 - length(vWorld.xz) / 66.0);
-        base += vec3(0.02, 0.10, 0.22) * grid * distFade;
         base += vec3(0.01, 0.01, 0.025);
         gl_FragColor = vec4(base, 1.0);
       }
     `
   });
-  neonMaterials.push(mat);
   return mat;
 }
 
-function makeFlameMaterial() {
-  const mat = new THREE.ShaderMaterial({
-    uniforms: {
-      time: { value: 0 },
-      power: { value: 1.0 }
-    },
-    vertexShader: `
-      varying vec2 vUv;
-      varying vec3 vLocal;
-      void main() {
-        vUv = uv;
-        vLocal = position;
-        vec4 mv = modelViewMatrix * vec4(position, 1.0);
-        gl_Position = projectionMatrix * mv;
-      }
-    `,
-    fragmentShader: `
-      uniform float time;
-      uniform float power;
-      varying vec2 vUv;
-      varying vec3 vLocal;
-      float hash(vec2 p) {
-        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
-      }
-      float noise(vec2 p) {
-        vec2 i = floor(p);
-        vec2 f = fract(p);
-        f = f * f * (3.0 - 2.0 * f);
-        float a = hash(i);
-        float b = hash(i + vec2(1.0, 0.0));
-        float c = hash(i + vec2(0.0, 1.0));
-        float d = hash(i + vec2(1.0, 1.0));
-        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-      }
-      void main() {
-        float tail = 1.0 - vUv.y;
-        float core = smoothstep(0.55, 0.0, abs(vUv.x - 0.5));
-        float n = noise(vec2(vUv.x * 7.0, vUv.y * 14.0 - time * 8.0));
-        float flicker = 0.7 + 0.3 * sin(time * 23.0 + n * 6.0);
-        float a = core * smoothstep(1.0, 0.08, vUv.y) * (0.45 + n * 0.85) * flicker * power;
-        vec3 hot = vec3(1.0, 0.86, 0.32);
-        vec3 orange = vec3(1.0, 0.24, 0.04);
-        vec3 magenta = vec3(1.0, 0.03, 0.42);
-        vec3 color = mix(hot, orange, smoothstep(0.0, 0.5, vUv.y));
-        color = mix(color, magenta, smoothstep(0.42, 1.0, vUv.y));
-        gl_FragColor = vec4(color * (1.35 + tail * 0.6), a);
-      }
-    `,
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    side: THREE.DoubleSide
-  });
-  flameMaterials.push(mat);
-  return mat;
+function createGlowTexture(size = 256) {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const g = ctx.createRadialGradient(size * 0.5, size * 0.5, 0, size * 0.5, size * 0.5, size * 0.5);
+  g.addColorStop(0.0, 'rgba(255,255,255,1.0)');
+  g.addColorStop(0.15, 'rgba(0,240,255,0.92)');
+  g.addColorStop(0.45, 'rgba(138,43,226,0.32)');
+  g.addColorStop(1.0, 'rgba(0,0,0,0.0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 // ============================================================
@@ -258,7 +155,6 @@ function makeFlameMaterial() {
 
 export function createCyberCity() {
   const group = new THREE.Group();
-
   const random = makeRandom(789);
 
   // ----- МАТЕРИАЛЫ -----
@@ -367,6 +263,32 @@ export function createCyberCity() {
   group.add(pointsToLine2(rightPts, edgeMat));
 
   // ----- ЦЕРКОВЬ -----
+  function createChurchTemplate(solidMat, edgeA, edgeB, edgeC, edgeD) {
+    const church = new THREE.Group();
+    const f1 = createSolidWithEdges(new THREE.BoxGeometry(8.0, 1.2, 14.0), solidMat, edgeA);
+    f1.position.y = 0.6;
+    church.add(f1);
+    const f2 = createSolidWithEdges(new THREE.BoxGeometry(7.0, 0.8, 13.0), solidMat, edgeB);
+    f2.position.y = 1.6;
+    church.add(f2);
+    const hall = createSolidWithEdges(new THREE.BoxGeometry(5.2, 6.0, 10.0), solidMat, edgeC);
+    hall.position.set(0, 5.0, -1.0);
+    church.add(hall);
+    const apseGeo = new THREE.CylinderGeometry(2.6, 2.6, 6.0, 8, 1, false, 0, Math.PI);
+    apseGeo.rotateY(Math.PI / 2);
+    const apse = createSolidWithEdges(apseGeo, solidMat, edgeA);
+    apse.position.set(0, 5.0, -6.0);
+    church.add(apse);
+    const tower = createSolidWithEdges(new THREE.BoxGeometry(2.6, 12.0, 2.6), solidMat, edgeC);
+    tower.position.set(0, 8.0, 5.3);
+    church.add(tower);
+    const spireGeo = new THREE.ConeGeometry(1.5, 8.0, 8);
+    const spire = createSolidWithEdges(spireGeo, solidMat, edgeB);
+    spire.position.set(0, 18.0, 5.3);
+    church.add(spire);
+    return church;
+  }
+
   const church = createChurchTemplate(solidBuildingMaterial, neonPurple, neonPink, neonCyan, neonAmber);
   const churchX = roadCurveX(-25) + 18.0;
   const churchY = terrainHeight(churchX, -25) - 0.4;
@@ -376,6 +298,31 @@ export function createCyberCity() {
   group.add(church);
 
   // ----- БАШНЯ -----
+  function createClockTowerTemplate(solidMat, edgeA, edgeB, edgeC, edgeD) {
+    const tower = new THREE.Group();
+    const f1 = createSolidWithEdges(new THREE.BoxGeometry(5.2, 1.5, 5.2), solidMat, edgeA);
+    f1.position.y = 0.75;
+    tower.add(f1);
+    const f2 = createSolidWithEdges(new THREE.BoxGeometry(4.2, 1.5, 4.2), solidMat, edgeC);
+    f2.position.y = 2.25;
+    tower.add(f2);
+    const core = createSolidWithEdges(new THREE.BoxGeometry(1.8, 12.0, 1.8), solidMat, edgeA);
+    core.position.y = 9.0;
+    tower.add(core);
+    const deck = createSolidWithEdges(new THREE.BoxGeometry(3.8, 0.4, 3.8), solidMat, edgeB);
+    deck.position.y = 15.2;
+    tower.add(deck);
+    const head = createSolidWithEdges(new THREE.BoxGeometry(3.0, 3.0, 3.0), solidMat, edgeC);
+    head.position.y = 17.1;
+    tower.add(head);
+    const roofGeo = new THREE.ConeGeometry(2.1, 1.0, 4);
+    roofGeo.rotateY(Math.PI / 4);
+    const roof = createSolidWithEdges(roofGeo, solidMat, edgeB);
+    roof.position.y = 19.1;
+    tower.add(roof);
+    return tower;
+  }
+
   const tower = createClockTowerTemplate(solidBuildingMaterial, neonPurple, neonPink, neonCyan, neonAmber);
   const towerX = roadCurveX(20) - 16.0;
   const towerY = terrainHeight(towerX, 20) - 0.7;
@@ -478,89 +425,6 @@ export function createCyberCity() {
     const light = new THREE.PointLight(0x00f0ff, 1.5, 15.0, 2.0);
     light.position.copy(glow.position);
     group.add(light);
-  }
-
-  // ----- ДРОНЫ -----
-  const droneMat = createSolidMaterial(0x020508, 0.9, 0.18, 0.48);
-  const droneEdgeMat = makeLineMat('#ff2a85', 2.6, 1.0);
-
-  for (let i = 0; i < 4; i++) {
-    const drone = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 0.3, 6), droneMat);
-    body.position.y = 0.15;
-    drone.add(body);
-
-    const wing = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.06, 0.3), droneMat);
-    wing.position.set(0, 0.25, -0.2);
-    drone.add(wing);
-
-    const glow = new THREE.PointLight(0xff2a85, 2.0, 8.0, 2.0);
-    glow.position.set(0, -0.2, 0);
-    drone.add(glow);
-
-    const fireLight = new THREE.PointLight(0xff6a22, 2.0, 10.0, 2.0);
-    fireLight.position.set(0, 0.3, -1.5);
-    drone.add(fireLight);
-
-    const offset = (i / 4) * Math.PI * 2;
-    drone.userData = { offset, speed: 0.45 + Math.random() * 0.45, altitude: 3.0 + Math.random() * 1.2, fireLight };
-    group.add(drone);
-    drone.position.set(0, 10, 0);
-  }
-
-  // ============================================================
-  // 3. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ЗДАНИЙ
-  // ============================================================
-
-  function createChurchTemplate(solidMat, edgeA, edgeB, edgeC, edgeD) {
-    const church = new THREE.Group();
-    const f1 = createSolidWithEdges(new THREE.BoxGeometry(8.0, 1.2, 14.0), solidMat, edgeA);
-    f1.position.y = 0.6;
-    church.add(f1);
-    const f2 = createSolidWithEdges(new THREE.BoxGeometry(7.0, 0.8, 13.0), solidMat, edgeB);
-    f2.position.y = 1.6;
-    church.add(f2);
-    const hall = createSolidWithEdges(new THREE.BoxGeometry(5.2, 6.0, 10.0), solidMat, edgeC);
-    hall.position.set(0, 5.0, -1.0);
-    church.add(hall);
-    const apseGeo = new THREE.CylinderGeometry(2.6, 2.6, 6.0, 8, 1, false, 0, Math.PI);
-    apseGeo.rotateY(Math.PI / 2);
-    const apse = createSolidWithEdges(apseGeo, solidMat, edgeA);
-    apse.position.set(0, 5.0, -6.0);
-    church.add(apse);
-    const tower = createSolidWithEdges(new THREE.BoxGeometry(2.6, 12.0, 2.6), solidMat, edgeC);
-    tower.position.set(0, 8.0, 5.3);
-    church.add(tower);
-    const spireGeo = new THREE.ConeGeometry(1.5, 8.0, 8);
-    const spire = createSolidWithEdges(spireGeo, solidMat, edgeB);
-    spire.position.set(0, 18.0, 5.3);
-    church.add(spire);
-    return church;
-  }
-
-  function createClockTowerTemplate(solidMat, edgeA, edgeB, edgeC, edgeD) {
-    const tower = new THREE.Group();
-    const f1 = createSolidWithEdges(new THREE.BoxGeometry(5.2, 1.5, 5.2), solidMat, edgeA);
-    f1.position.y = 0.75;
-    tower.add(f1);
-    const f2 = createSolidWithEdges(new THREE.BoxGeometry(4.2, 1.5, 4.2), solidMat, edgeC);
-    f2.position.y = 2.25;
-    tower.add(f2);
-    const core = createSolidWithEdges(new THREE.BoxGeometry(1.8, 12.0, 1.8), solidMat, edgeA);
-    core.position.y = 9.0;
-    tower.add(core);
-    const deck = createSolidWithEdges(new THREE.BoxGeometry(3.8, 0.4, 3.8), solidMat, edgeB);
-    deck.position.y = 15.2;
-    tower.add(deck);
-    const head = createSolidWithEdges(new THREE.BoxGeometry(3.0, 3.0, 3.0), solidMat, edgeC);
-    head.position.y = 17.1;
-    tower.add(head);
-    const roofGeo = new THREE.ConeGeometry(2.1, 1.0, 4);
-    roofGeo.rotateY(Math.PI / 4);
-    const roof = createSolidWithEdges(roofGeo, solidMat, edgeB);
-    roof.position.y = 19.1;
-    tower.add(roof);
-    return tower;
   }
 
   return group;
