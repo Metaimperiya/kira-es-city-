@@ -13,7 +13,7 @@ export let mainShip = null;
 export let bonfires = [];
 
 export const SPAWN_LOCAL = { x: 0.04, y: 12.50, z: 2.64 };
-export let shipSpawnPoint = { x: 0, y: 3, z: 0 };
+export let shipSpawnPoint = { x: 0, y: 1, z: 0 };
 
 export function loadShip() {
   return new Promise((resolve) => {
@@ -50,8 +50,8 @@ function setupShip(model) {
 
   shipContainer.add(model);
 
-  // 💡 ЕЩЁ УМЕНЬШАЕМ ЗАМОК (поставили 110)
-  const TARGET_SIZE = 110; 
+  // 💡 ЕЩЁ МЕНЬШЕ (сделали 90)
+  const TARGET_SIZE = 90; 
   const maxDim = Math.max(size.x, size.z) || 1;
   const scale = TARGET_SIZE / maxDim;
   shipContainer.scale.set(scale, scale, scale);
@@ -64,8 +64,9 @@ function setupShip(model) {
     }
   });
 
-  // 💡 ОПУСКАЕМ НА ВЫСОТУ ПЕРСОНАЖА (поставили 0)
-  shipContainer.position.set(0, 0, 0);
+  // 💡 ЖЁСТКО ОПУСКАЕМ В МИНУС (Y = -3.5)
+  const SHIP_Y_POS = -3.5;
+  shipContainer.position.set(0, SHIP_Y_POS, 0);
 
   scene.add(shipContainer);
   mainShip = shipContainer;
@@ -78,7 +79,7 @@ function setupShip(model) {
   ];
 
   firePositions.forEach((pos) => {
-    const fire = new Bonfire(pos.x, 0, pos.z);
+    const fire = new Bonfire(pos.x, SHIP_Y_POS, pos.z);
     bonfires.push(fire);
   });
 
