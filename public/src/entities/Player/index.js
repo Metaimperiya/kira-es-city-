@@ -208,10 +208,6 @@ export function createPlayer() {
 
   const cloud = new THREE.Points(particleGeo, material);
   cloud.scale.set(0.015, 0.015, 0.015);
-  
-  // 💡 ВЫСОТА НАД ПОВЕРХНОСТЬЮ:
-  // Нижние точки модели уходят до -90 * 0.015 = -1.35.
-  // Выставляем 1.35, чтобы пятки вставали ровно на 0 (уровень земли/палубы)
   cloud.position.y = 1.35;
 
   playerGroup.add(cloud);
@@ -256,11 +252,11 @@ export function updatePlayer() {
   const isMovingNow = Math.abs(input.moveX) > 0.05 || Math.abs(input.moveZ) > 0.05 || isClickMoving;
 
   if (isMovingNow) {
-    walkCycle += delta * 10; // Сделать анимацию шага чуть быстрее
+    walkCycle += delta * 10;
     isMoving = true;
   } else {
     isMoving = false;
-    walkCycle *= 0.85; // Быстрое затухание при остановке
+    walkCycle *= 0.85;
   }
 
   elapsedTime += delta;
@@ -274,6 +270,12 @@ export function updatePlayer() {
     const by = particleBasePositions[i * 3 + 1];
     const bz = particleBasePositions[i * 3 + 2];
 
+    // 💀 ГОЛОВА (Y > 80) — ОСТАЁТСЯ В ПОКОЕ, БЕЗ СМЕЩЕНИЙ И ДЫХАНИЯ
+    if (by > 80) {
+      positions.setXYZ(i, bx, by, bz);
+      continue;
+    }
+
     const breath = Math.sin(elapsedTime * 1.7 + by * 0.04) * 1.2 + Math.sin(elapsedTime * 0.9 + bx * 0.03) * 0.8;
     const breathY = Math.cos(elapsedTime * 1.4 + bx * 0.04) * 1.2 + Math.sin(elapsedTime * 1.1 + bz * 0.03) * 0.8;
     const breathZ = Math.sin(elapsedTime * 1.6 + bz * 0.04) * 1.2 + Math.cos(elapsedTime * 0.8 + by * 0.03) * 0.8;
@@ -281,25 +283,22 @@ export function updatePlayer() {
     let walkX = 0, walkY = 0, walkZ = 0;
 
     if (isMoving) {
-      // 🦵 ИСПРАВЛЕНА АНИМАЦИЯ НОГ (все точки Y < 20, включая отрицательные Y)
+      // 🦵 НОГИ (Y < 20)
       if (by < 20) {
         const legSide = bx > 0 ? 1 : -1;
-        // Перекрестный шаг левой и правой ноги
-        walkZ = legSide * walkSin * 15; 
-        walkY = Math.max(0, legSide * walkSin) * 6; // Нога приподнимается при шаге вперед
+        walkZ = legSide * walkSin * 15;
+        walkY = Math.max(0, legSide * walkSin) * 6;
       }
-      
-      // 🖐️ ИСПРАВЛЕНА АНИМАЦИЯ РУК
+      // 🖐️ РУКИ (Y > 50)
       else if (by > 50 && Math.abs(bx) > 18) {
         const armSide = bx > 0 ? 1 : -1;
-        walkZ = -armSide * walkSin * 12; // Руки качаются в противофазе ногам
+        walkZ = -armSide * walkSin * 12;
         walkX = -armSide * Math.abs(walkSin) * 2;
       }
-      
-      // 🎽 ТОРС И ГОЛОВА
+      // 🎽 ТОРС
       else {
-        walkY = Math.abs(walkSin) * 2; // Легкое покачивание вверх-вниз всего тела
-        walkX = walkCos * 1.5;
+        walkY = Math.abs(walkSin) * 1.5;
+        walkX = walkCos * 1.0;
       }
     }
 
