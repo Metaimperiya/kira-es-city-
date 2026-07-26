@@ -1,140 +1,153 @@
 // ============================================================
-// ЗАМОК (GLB) - С ВСТРОЕННЫМ СВЕТОМ
+// ФИЗИКА И ДВИЖЕНИЕ
 // ============================================================
 
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { scene } from '../core/scene.js';
-import { playerPos } from './Player/index.js';
-import { sendPosition } from '../network/sync.js';
-import { Bonfire } from './Bonfire.js';
+import { PlayerCamera } from './PlayerCamera.js';
+import { mainShip } from '../Ship.js';
 
-export let mainShip = null;
-export let bonfires = [];
+const downRaycaster = new THREE.Raycaster();
+const forwardRaycaster = new THREE.Raycaster();
+const stepRaycaster = new THREE.Raycaster();
 
-export const SPAWN_LOCAL = { x: 0.04, y: 12.50, z: 2.64 };
-export let shipSpawnPoint = { x: 0, y: 2, z: 0 };
+const downVector = new THREE.Vector3(0, -1, 0);
+const moveVector = new THREE.Vector3();
+const rayOrigin = new THREE.Vector3();
 
-export function loadShip() {
-  return new Promise((resolve) => {
-    const loader = new GLTFLoader();
-    
-    console.log('📥 Загрузка GLB модели...');
-    loader.load(
-      '/assets/models/monu2.glb',
-      (gltf) => {
-        console.log('✅ GLB модель загружена!');
-        setupShip(gltf.scene);
-        resolve();
-      },
-      undefined,
-      (error) => {
-        console.error('❌ Ошибка загрузки GLB:', error);
-        resolve();
+const MAX_STEP_HEIGHT = 0.7; // Макс. высота ступени для зашагивания
+
+export const PlayerController = {
+  group: null,
+  pos: null,
+  velocityY: 0,
+  isGrounded: true,
+  rotation: 0,
+
+  init(group, pos) {
+    this.group = group;
+    this.pos = pos;
+  },
+
+  update(input, delta) {
+    let moveX = input.moveX;
+    let moveZ = input.moveZ;
+
+    const speed = 11;
+    let moved = false;
+
+    if (Math.abs(moveX) > 0.05 || Math.abs(moveZ) > 0.05) {
+      const len = Math.hypot(moveX, moveZ);
+      const normX = moveX / len;
+      const normZ = moveZ / len;
+
+      const yaw = PlayerCamera.euler.y;
+      const sin = Math.sin(yaw);
+      const cos = Math.cos(yaw);
+
+      let dx = (-normZ * sin + normX * cos) * speed * delta;
+      let dz = (-normZ * cos - normX * sin) * speed * delta;
+
+      if (mainShip) {
+        // --- ДВИЖЕНИЕ И СТУПЕНИ X ---
+        if (dx !== 0) {
+          moveVector.set(Math.sign(dx), 0, 0);
+          rayOrigin.set(this.pos.x, this.pos.y + 0.2, this.pos.z);
+          forwardRaycaster.set(rayOrigin, moveVector);
+          const hits = forwardRaycaster.intersectObject(mainShip, true);
+
+          if (hits.length > 0 && hits[0].distance < 0.7) {
+            if (Math.abs(hits[0].face.normal.y) < 0.5) {
+              // Проверяем свободное место чуть выше
+              rayOrigin.set(this.pos.x, this.pos.y + MAX_STEP_HEIGHT, this.pos.z);
+              stepRaycaster.set(rayOrigin, moveVector);
+              const stepHits = stepRaycaster.intersectObject(mainShip, true);
+
+              if (stepHits.length === 0 || stepHits[0].distance >= 0.7) {
+                this.pos.y += 0.2; // Запрыгиваем на ступень
+              } else {
+                dx = 0; // Стена high-wall
+              }
+            }
+          }
+        }
+
+        // --- ДВИЖЕНИЕ И СТУПЕНИ Z ---
+        if (dz !== 0) {
+          moveVector.set(0, 0, Math.sign(dz));
+          rayOrigin.set(this.pos.x + dx, this.pos.y + 0.2, this.pos.z);
+          forwardRaycaster.set(rayOrigin, moveVector);
+          const hits = forwardRaycaster.intersectObject(mainShip, true);
+
+          if (hits.length > 0 && hits[0].distance < 0.7) {
+            if (Math.abs(hits[0].face.normal.y) < 0.5) {
+              rayOrigin.set(this.pos.x + dx, this.pos.y + MAX_STEP_HEIGHT, this.pos.z);
+              stepRaycaster.set(rayOrigin, moveVector);
+              const stepHits = stepRaycaster.intersectObject(mainShip, true);
+
+              if (stepHits.length === 0 || stepHits[0].distance >= 0.7) {
+                this.pos.y += 0.2; // Запрыгиваем на ступень
+              } else {
+                dz = 0;
+              }
+            }
+          }
+        }
       }
-    );
-  });
-}
 
-function setupShip(model) {
-  const shipContainer = new THREE.Group();
-  
-  // Центрируем модель
-  const box = new THREE.Box3().setFromObject(model);
-  const center = box.getCenter(new THREE.Vector3());
-  const size = box.getSize(new THREE.Vector3());
+      this.pos.x += dx;
+      this.pos.z += dz;
+      moved = true;
 
-  model.position.x = -center.x;
-  model.position.z = -center.z;
-  model.position.y = -box.min.y;
-
-  shipContainer.add(model);
-
-  // Масштабируем ширину и длину
-  const TARGET_SIZE = 240; 
-  const maxDim = Math.max(size.x, size.z);
-  const scale = TARGET_SIZE / (maxDim || 1);
-
-  // 💡 СЖИМАЕМ ВЫСОТУ (Y = scale * 0.6)
-  // Это делает ступеньки ниже и приплюснутыми, чтобы персонаж легко перешагивал их!
-  shipContainer.scale.set(scale, scale * 0.6, scale);
-
-  // Включаем тени
-  model.traverse((child) => {
-    if (child.isMesh) {
-      child.castShadow = true;
-      child.receiveShadow = true;
+      this.rotation = Math.atan2(dx, dz);
+      this.group.rotation.y = this.rotation;
     }
-  });
 
-  // Опускаем замок ниже к воде/полу
-  shipContainer.position.set(0, 1.0, 0);
+    // --- ПРОВЕРКА ПОЛА И ГРАВИТАЦИЯ ---
+    let floorY = 0;
+    if (mainShip) {
+      rayOrigin.set(this.pos.x, this.pos.y + 3, this.pos.z);
+      downRaycaster.set(rayOrigin, downVector);
+      const hits = downRaycaster.intersectObject(mainShip, true);
 
-  scene.add(shipContainer);
-  mainShip = shipContainer;
-
-  // --- КОСТРЫ ---
-  const firePositions = [
-    { x: -4.66, z: 4.81 },
-    { x: 5.29, z: 3.15 },
-    { x: 2.67, z: -9.27 }
-  ];
-
-  firePositions.forEach((pos) => {
-    const fire = new Bonfire(pos.x, 1.0, pos.z);
-    bonfires.push(fire);
-  });
-
-  shipContainer.updateMatrixWorld(true);
-
-  const localVec = new THREE.Vector3(SPAWN_LOCAL.x, SPAWN_LOCAL.y, SPAWN_LOCAL.z);
-  const worldVec = shipContainer.localToWorld(localVec);
-
-  shipSpawnPoint = {
-    x: worldVec.x,
-    y: worldVec.y,
-    z: worldVec.z
-  };
-
-  console.log(`✅ Замок загружен! Спавн: Y=${shipSpawnPoint.y.toFixed(2)}`);
-
-  if (playerPos) {
-    playerPos.x = shipSpawnPoint.x;
-    playerPos.y = shipSpawnPoint.y;
-    playerPos.z = shipSpawnPoint.z;
-    sendPosition(playerPos.x, playerPos.y, playerPos.z, 0);
-  }
-}
-
-window.addEventListener('keydown', (e) => {
-  const activeTag = document.activeElement?.tagName;
-  if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
-
-  const key = e.key.toLowerCase();
-  if ((e.code === 'KeyP' || key === 'p' || key === 'з') && mainShip && playerPos) {
-    mainShip.updateMatrixWorld(true);
-    
-    const playerWorldVec = new THREE.Vector3(playerPos.x, playerPos.y, playerPos.z);
-    const shipLocalVec = mainShip.worldToLocal(playerWorldVec.clone());
-
-    const coordsString = `x: ${shipLocalVec.x.toFixed(2)}, y: ${shipLocalVec.y.toFixed(2)}, z: ${shipLocalVec.z.toFixed(2)}`;
-    
-    console.log('%c 🎯 ЛОКАЛЬНАЯ ТОЧКА ЗАМКА:', 'background: #111; color: #00f3ff; font-size: 14px; font-weight: bold;');
-    console.log(coordsString);
-
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(coordsString);
-      console.log('📋 Координаты скопированы в буфер обмена!');
+      if (hits.length > 0) {
+        const hit = hits[0];
+        if (hit.point.y >= -1.5 && (this.pos.y + 3 - hit.point.y) <= 20) {
+          floorY = hit.point.y;
+        }
+      }
     }
-  }
-});
 
-export function teleportToShip() {
-  if (mainShip) {
-    mainShip.updateMatrixWorld(true);
-    const localVec = new THREE.Vector3(SPAWN_LOCAL.x, SPAWN_LOCAL.y, SPAWN_LOCAL.z);
-    const worldVec = mainShip.localToWorld(localVec);
-    return { x: worldVec.x, y: worldVec.y, z: worldVec.z };
+    const jumpForce = 7;
+    const gravity = -20;
+
+    if (input.jump && this.isGrounded) {
+      this.velocityY = jumpForce;
+      this.isGrounded = false;
+    }
+
+    if (this.pos.y > floorY + 0.2 && this.isGrounded) {
+      this.isGrounded = false;
+    }
+
+    if (!this.isGrounded) {
+      this.velocityY += gravity * delta;
+      this.pos.y += this.velocityY * delta;
+
+      if (this.pos.y <= floorY) {
+        this.pos.y = floorY;
+        this.velocityY = 0;
+        this.isGrounded = true;
+      }
+    } else {
+      this.pos.y = floorY;
+    }
+
+    this.group.position.set(this.pos.x, this.pos.y, this.pos.z);
+
+    return moved;
+  },
+
+  getRotation() {
+    return this.rotation;
   }
-  return { ...shipSpawnPoint };
-}
+};
