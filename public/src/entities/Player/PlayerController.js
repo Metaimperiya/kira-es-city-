@@ -1,20 +1,11 @@
 // ============================================================
-// ФИЗИКА И ДВИЖЕНИЕ
+// ФИЗИКА, ДВИЖЕНИЕ И КОЛЛИЗИИ
 // ============================================================
 
 import * as THREE from 'three';
 import { PlayerCamera } from './PlayerCamera.js';
-import { mainShip } from '../Ship.js';
 
-const downRaycaster = new THREE.Raycaster();
-const forwardRaycaster = new THREE.Raycaster();
-const stepRaycaster = new THREE.Raycaster();
-
-const downVector = new THREE.Vector3(0, -1, 0);
-const moveVector = new THREE.Vector3();
-const rayOrigin = new THREE.Vector3();
-
-const MAX_STEP_HEIGHT = 0.7; // Макс. высота ступени для зашагивания
+const MAX_STEP_HEIGHT = 0.7;
 
 export const PlayerController = {
   group: null,
@@ -22,101 +13,88 @@ export const PlayerController = {
   velocityY: 0,
   isGrounded: true,
   rotation: 0,
+  colliders: [],
 
   init(group, pos) {
     this.group = group;
     this.pos = pos;
+    this.colliders = [];
+  },
+
+  addCollider(mesh) {
+    if (mesh && mesh.isMesh) {
+      this.colliders.push(mesh);
+    }
+  },
+
+  checkCollision(posX, posZ, mesh) {
+    const worldPos = new THREE.Vector3();
+    mesh.getWorldPosition(worldPos);
+    
+    const bbox = mesh.geometry.boundingBox;
+    if (!bbox) return false;
+    
+    const scale = mesh.scale;
+    const halfW = (bbox.max.x - bbox.min.x) * scale.x / 2;
+    const halfD = (bbox.max.z - bbox.min.z) * scale.z / 2;
+    const playerRadius = 0.5;
+
+    return posX > worldPos.x - halfW - playerRadius &&
+           posX < worldPos.x + halfW + playerRadius &&
+           posZ > worldPos.z - halfD - playerRadius &&
+           posZ < worldPos.z + halfD + playerRadius;
   },
 
   update(input, delta) {
-    let moveX = input.moveX;
-    let moveZ = input.moveZ;
+    let moveX = input.moveX || 0;
+    let moveZ = input.moveZ || 0;
 
     const speed = 11;
     let moved = false;
 
     if (Math.abs(moveX) > 0.05 || Math.abs(moveZ) > 0.05) {
       const len = Math.hypot(moveX, moveZ);
-      const normX = moveX / len;
-      const normZ = moveZ / len;
+      moveX /= len;
+      moveZ /= len;
 
-      const yaw = PlayerCamera.euler.y;
+      const yaw = PlayerCamera.euler?.y || 0;
       const sin = Math.sin(yaw);
       const cos = Math.cos(yaw);
 
-      let dx = (-normZ * sin + normX * cos) * speed * delta;
-      let dz = (-normZ * cos - normX * sin) * speed * delta;
+      let dx = (-moveZ * sin + moveX * cos) * speed * delta;
+      let dz = (-moveZ * cos - moveX * sin) * speed * delta;
 
-      if (mainShip) {
-        // --- ДВИЖЕНИЕ И СТУПЕНИ X ---
-        if (dx !== 0) {
-          moveVector.set(Math.sign(dx), 0, 0);
-          rayOrigin.set(this.pos.x, this.pos.y + 0.2, this.pos.z);
-          forwardRaycaster.set(rayOrigin, moveVector);
-          const hits = forwardRaycaster.intersectObject(mainShip, true);
-
-          if (hits.length > 0 && hits[0].distance < 0.7) {
-            if (Math.abs(hits[0].face.normal.y) < 0.5) {
-              // Проверяем свободное место чуть выше
-              rayOrigin.set(this.pos.x, this.pos.y + MAX_STEP_HEIGHT, this.pos.z);
-              stepRaycaster.set(rayOrigin, moveVector);
-              const stepHits = stepRaycaster.intersectObject(mainShip, true);
-
-              if (stepHits.length === 0 || stepHits[0].distance >= 0.7) {
-                this.pos.y += 0.2; // Запрыгиваем на ступень
-              } else {
-                dx = 0; // Стена high-wall
-              }
-            }
-          }
-        }
-
-        // --- ДВИЖЕНИЕ И СТУПЕНИ Z ---
-        if (dz !== 0) {
-          moveVector.set(0, 0, Math.sign(dz));
-          rayOrigin.set(this.pos.x + dx, this.pos.y + 0.2, this.pos.z);
-          forwardRaycaster.set(rayOrigin, moveVector);
-          const hits = forwardRaycaster.intersectObject(mainShip, true);
-
-          if (hits.length > 0 && hits[0].distance < 0.7) {
-            if (Math.abs(hits[0].face.normal.y) < 0.5) {
-              rayOrigin.set(this.pos.x + dx, this.pos.y + MAX_STEP_HEIGHT, this.pos.z);
-              stepRaycaster.set(rayOrigin, moveVector);
-              const stepHits = stepRaycaster.intersectObject(mainShip, true);
-
-              if (stepHits.length === 0 || stepHits[0].distance >= 0.7) {
-                this.pos.y += 0.2; // Запрыгиваем на ступень
-              } else {
-                dz = 0;
-              }
-            }
-          }
+      let blockedX = false;
+      for (const collider of this.colliders) {
+        if (this.checkCollision(this.pos.x + dx, this.pos.z, collider)) {
+          blockedX = true;
+          break;
         }
       }
+      if (!blockedX) {
+        this.pos.x += dx;
+        moved = true;
+      }
 
-      this.pos.x += dx;
-      this.pos.z += dz;
-      moved = true;
-
-      this.rotation = Math.atan2(dx, dz);
-      this.group.rotation.y = this.rotation;
-    }
-
-    // --- ПРОВЕРКА ПОЛА И ГРАВИТАЦИЯ ---
-    let floorY = 0;
-    if (mainShip) {
-      rayOrigin.set(this.pos.x, this.pos.y + 3, this.pos.z);
-      downRaycaster.set(rayOrigin, downVector);
-      const hits = downRaycaster.intersectObject(mainShip, true);
-
-      if (hits.length > 0) {
-        const hit = hits[0];
-        if (hit.point.y >= -1.5 && (this.pos.y + 3 - hit.point.y) <= 20) {
-          floorY = hit.point.y;
+      let blockedZ = false;
+      for (const collider of this.colliders) {
+        if (this.checkCollision(this.pos.x, this.pos.z + dz, collider)) {
+          blockedZ = true;
+          break;
         }
+      }
+      if (!blockedZ) {
+        this.pos.z += dz;
+        moved = true;
+      }
+
+      if (moved) {
+        this.rotation = Math.atan2(moveX, moveZ);
+        this.group.rotation.y = this.rotation;
       }
     }
 
+    const floorY = 0;
     const jumpForce = 7;
     const gravity = -20;
 
@@ -125,14 +103,9 @@ export const PlayerController = {
       this.isGrounded = false;
     }
 
-    if (this.pos.y > floorY + 0.2 && this.isGrounded) {
-      this.isGrounded = false;
-    }
-
     if (!this.isGrounded) {
       this.velocityY += gravity * delta;
       this.pos.y += this.velocityY * delta;
-
       if (this.pos.y <= floorY) {
         this.pos.y = floorY;
         this.velocityY = 0;
@@ -143,7 +116,6 @@ export const PlayerController = {
     }
 
     this.group.position.set(this.pos.x, this.pos.y, this.pos.z);
-
     return moved;
   },
 
