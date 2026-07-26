@@ -1,5 +1,5 @@
 // ============================================================
-// ИГРОК (X-RAY GHOST) — С АНИМАЦИЕЙ ХОДЬБЫ
+// ИГРОК (X-RAY GHOST) — ПРИВЯЗАН К ПОВЕРХНОСТИ
 // ============================================================
 
 import * as THREE from 'three';
@@ -18,7 +18,7 @@ let playerGroup;
 let delta = 0;
 export let velocityY = 0;
 let elapsedTime = 0;
-let walkCycle = 0; // Для анимации ходьбы
+let walkCycle = 0;
 let isMoving = false;
 
 // ============================================================
@@ -31,7 +31,7 @@ let particleBasePositions;
 let particleColors;
 
 // ============================================================
-// ТЕКСТУРЫ СИМВОЛОВ
+// ТЕКСТУРЫ
 // ============================================================
 function makeTexture(char) {
   const c = document.createElement('canvas');
@@ -51,7 +51,7 @@ const glyphs = '01XYZSYS_ERR⌘⚡☠∆ΞΨΩµ§#@&%*+=-:;<>█▓▒░'.spli
 const textures = glyphs.map(g => makeTexture(g));
 
 // ============================================================
-// МАСКА ЛИЦА (дырки)
+// МАСКА ЛИЦА
 // ============================================================
 function inFace(x, y, z) {
   if (Math.hypot(x + 14, y - 97, z - 30) < 7) return true;
@@ -208,7 +208,10 @@ export function createPlayer() {
 
   const cloud = new THREE.Points(particleGeo, material);
   cloud.scale.set(0.015, 0.015, 0.015);
-  cloud.position.y = 3.5;
+  
+  // ⬇️ ВЫСОТА НАД ПОВЕРХНОСТЬЮ (НЕ МЕНЯТЬ БЕЗ НЕОБХОДИМОСТИ) ⬇️
+  cloud.position.y = 2.5;
+
   playerGroup.add(cloud);
 
   const spawn = teleportToShip();
@@ -250,13 +253,11 @@ export function updatePlayer() {
   const input = PlayerInput.getInput();
   const isMovingNow = Math.abs(input.moveX) > 0.05 || Math.abs(input.moveZ) > 0.05;
 
-  // Обновляем walkCycle только если двигаемся
   if (isMovingNow) {
-    walkCycle += delta * 6; // Скорость ходьбы
+    walkCycle += delta * 6;
     isMoving = true;
   } else {
     isMoving = false;
-    // Плавно затухаем, чтобы не дёргалось
     walkCycle *= 0.95;
   }
 
@@ -271,53 +272,40 @@ export function updatePlayer() {
     const by = particleBasePositions[i * 3 + 1];
     const bz = particleBasePositions[i * 3 + 2];
 
-    // Базовая пульсация (дыхание)
     const breath = Math.sin(elapsedTime * 1.7 + by * 0.04) * 1.2 + Math.sin(elapsedTime * 0.9 + bx * 0.03) * 0.8;
     const breathY = Math.cos(elapsedTime * 1.4 + bx * 0.04) * 1.2 + Math.sin(elapsedTime * 1.1 + bz * 0.03) * 0.8;
     const breathZ = Math.sin(elapsedTime * 1.6 + bz * 0.04) * 1.2 + Math.cos(elapsedTime * 0.8 + by * 0.03) * 0.8;
 
-    // ===== АНИМАЦИЯ ХОДЬБЫ =====
     let walkX = 0, walkY = 0, walkZ = 0;
 
     if (isMoving) {
-      // НОГИ (y < 15 — это ноги)
+      // НОГИ (y < 15)
       if (by < 15) {
         const legSide = bx > 0 ? 1 : -1;
-        // Ноги двигаются в противофазе
-        const legPhase = legSide * walkSin * 2.5;
-        walkX = legPhase * 0.4;
-        walkY = Math.abs(walkSin) * 1.2;
-        walkZ = walkCos * 0.8 * legSide;
+        walkX = legSide * walkSin * 0.3;
+        walkY = Math.abs(walkSin) * 1.0;
+        walkZ = walkCos * 0.5 * legSide;
       }
-
-      // РУКИ (y > 60 и bx > 20 — это руки)
+      // РУКИ (y > 60 и |bx| > 20)
       if (by > 60 && Math.abs(bx) > 20) {
         const armSide = bx > 0 ? 1 : -1;
-        // Руки качаются в противофазе с ногами
-        const armPhase = -armSide * walkSin * 1.8;
-        walkX = armPhase * 0.3;
-        walkY = Math.sin(walkCycle + armSide * 1.5) * 0.6;
-        walkZ = walkCos * 0.5 * armSide;
+        walkX = -armSide * walkSin * 0.25;
+        walkY = Math.sin(walkCycle + armSide * 1.5) * 0.4;
+        walkZ = walkCos * 0.3 * armSide;
       }
-
-      // ТОРС (лёгкое покачивание)
+      // ТОРС
       if (by > 15 && by < 60) {
-        walkX = walkSin * 0.3;
-        walkZ = walkCos * 0.2;
+        walkX = walkSin * 0.2;
+        walkZ = walkCos * 0.15;
       }
-
-      // ГОЛОВА (лёгкий наклон)
+      // ГОЛОВА
       if (by > 80) {
-        walkX = walkSin * 0.15;
-        walkY = Math.sin(walkCycle * 0.5) * 0.2;
+        walkX = walkSin * 0.1;
+        walkY = Math.sin(walkCycle * 0.5) * 0.15;
       }
     }
 
-    const nx = breath + walkX;
-    const ny = breathY + walkY;
-    const nz = breathZ + walkZ;
-
-    positions.setXYZ(i, bx + nx, by + ny, bz + nz);
+    positions.setXYZ(i, bx + breath + walkX, by + breathY + walkY, bz + breathZ + walkZ);
   }
   positions.needsUpdate = true;
 
