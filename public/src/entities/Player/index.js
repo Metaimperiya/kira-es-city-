@@ -209,8 +209,10 @@ export function createPlayer() {
   const cloud = new THREE.Points(particleGeo, material);
   cloud.scale.set(0.015, 0.015, 0.015);
   
-  // ⬇️ ВЫСОТА НАД ПОВЕРХНОСТЬЮ (НЕ МЕНЯТЬ БЕЗ НЕОБХОДИМОСТИ) ⬇️
-  cloud.position.y = 2.5;
+  // 💡 ВЫСОТА НАД ПОВЕРХНОСТЬЮ:
+  // Нижние точки модели уходят до -90 * 0.015 = -1.35.
+  // Выставляем 1.35, чтобы пятки вставали ровно на 0 (уровень земли/палубы)
+  cloud.position.y = 1.35;
 
   playerGroup.add(cloud);
 
@@ -251,14 +253,14 @@ export function updatePlayer() {
   if (!particleGeo) return;
 
   const input = PlayerInput.getInput();
-  const isMovingNow = Math.abs(input.moveX) > 0.05 || Math.abs(input.moveZ) > 0.05;
+  const isMovingNow = Math.abs(input.moveX) > 0.05 || Math.abs(input.moveZ) > 0.05 || isClickMoving;
 
   if (isMovingNow) {
-    walkCycle += delta * 6;
+    walkCycle += delta * 10; // Сделать анимацию шага чуть быстрее
     isMoving = true;
   } else {
     isMoving = false;
-    walkCycle *= 0.95;
+    walkCycle *= 0.85; // Быстрое затухание при остановке
   }
 
   elapsedTime += delta;
@@ -279,29 +281,25 @@ export function updatePlayer() {
     let walkX = 0, walkY = 0, walkZ = 0;
 
     if (isMoving) {
-      // НОГИ (y < 15)
-      if (by < 15) {
+      // 🦵 ИСПРАВЛЕНА АНИМАЦИЯ НОГ (все точки Y < 20, включая отрицательные Y)
+      if (by < 20) {
         const legSide = bx > 0 ? 1 : -1;
-        walkX = legSide * walkSin * 0.3;
-        walkY = Math.abs(walkSin) * 1.0;
-        walkZ = walkCos * 0.5 * legSide;
+        // Перекрестный шаг левой и правой ноги
+        walkZ = legSide * walkSin * 15; 
+        walkY = Math.max(0, legSide * walkSin) * 6; // Нога приподнимается при шаге вперед
       }
-      // РУКИ (y > 60 и |bx| > 20)
-      if (by > 60 && Math.abs(bx) > 20) {
+      
+      // 🖐️ ИСПРАВЛЕНА АНИМАЦИЯ РУК
+      else if (by > 50 && Math.abs(bx) > 18) {
         const armSide = bx > 0 ? 1 : -1;
-        walkX = -armSide * walkSin * 0.25;
-        walkY = Math.sin(walkCycle + armSide * 1.5) * 0.4;
-        walkZ = walkCos * 0.3 * armSide;
+        walkZ = -armSide * walkSin * 12; // Руки качаются в противофазе ногам
+        walkX = -armSide * Math.abs(walkSin) * 2;
       }
-      // ТОРС
-      if (by > 15 && by < 60) {
-        walkX = walkSin * 0.2;
-        walkZ = walkCos * 0.15;
-      }
-      // ГОЛОВА
-      if (by > 80) {
-        walkX = walkSin * 0.1;
-        walkY = Math.sin(walkCycle * 0.5) * 0.15;
+      
+      // 🎽 ТОРС И ГОЛОВА
+      else {
+        walkY = Math.abs(walkSin) * 2; // Легкое покачивание вверх-вниз всего тела
+        walkX = walkCos * 1.5;
       }
     }
 
