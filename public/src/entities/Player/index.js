@@ -1,5 +1,5 @@
 // ============================================================
-// ИГРОК (X-RAY GHOST) — ПОДНЯТ
+// ИГРОК (X-RAY GHOST) — С АНИМАЦИЕЙ ХОДЬБЫ
 // ============================================================
 
 import * as THREE from 'three';
@@ -18,6 +18,8 @@ let playerGroup;
 let delta = 0;
 export let velocityY = 0;
 let elapsedTime = 0;
+let walkCycle = 0; // Для анимации ходьбы
+let isMoving = false;
 
 // ============================================================
 // ПАРАМЕТРЫ ПРИЗРАКА
@@ -191,7 +193,6 @@ export function createPlayer() {
   playerGroup = new THREE.Group();
   scene.add(playerGroup);
 
-  // Генерируем призрака
   generateGhost();
 
   const material = new THREE.PointsMaterial({
@@ -207,14 +208,9 @@ export function createPlayer() {
 
   const cloud = new THREE.Points(particleGeo, material);
   cloud.scale.set(0.015, 0.015, 0.015);
-  
-  // ⬇️ ПОДНИМАЕМ ПРИЗРАКА, ЧТОБЫ НОГИ БЫЛИ НА УРОВНЕ ПАЛУБЫ ⬇️
-  // Смещаем вверх на 3 единицы (ноги призрака находятся внизу модели)
   cloud.position.y = 3.5;
-  
   playerGroup.add(cloud);
 
-  // Спавн на корабле
   const spawn = teleportToShip();
   if (spawn) {
     playerPos.x = spawn.x;
@@ -251,25 +247,81 @@ export function checkWaterFall() {
 export function updatePlayer() {
   if (!particleGeo) return;
 
+  const input = PlayerInput.getInput();
+  const isMovingNow = Math.abs(input.moveX) > 0.05 || Math.abs(input.moveZ) > 0.05;
+
+  // Обновляем walkCycle только если двигаемся
+  if (isMovingNow) {
+    walkCycle += delta * 6; // Скорость ходьбы
+    isMoving = true;
+  } else {
+    isMoving = false;
+    // Плавно затухаем, чтобы не дёргалось
+    walkCycle *= 0.95;
+  }
+
   elapsedTime += delta;
 
-  // Анимация дыхания/колыхания
   const positions = particleGeo.attributes.position;
+  const walkSin = Math.sin(walkCycle);
+  const walkCos = Math.cos(walkCycle);
+
   for (let i = 0; i < PARTICLE_COUNT; i++) {
     const bx = particleBasePositions[i * 3];
     const by = particleBasePositions[i * 3 + 1];
     const bz = particleBasePositions[i * 3 + 2];
 
-    const nx = Math.sin(elapsedTime * 1.7 + by * 0.04) * 1.2 + Math.sin(elapsedTime * 0.9 + bx * 0.03) * 0.8;
-    const ny = Math.cos(elapsedTime * 1.4 + bx * 0.04) * 1.2 + Math.sin(elapsedTime * 1.1 + bz * 0.03) * 0.8;
-    const nz = Math.sin(elapsedTime * 1.6 + bz * 0.04) * 1.2 + Math.cos(elapsedTime * 0.8 + by * 0.03) * 0.8;
+    // Базовая пульсация (дыхание)
+    const breath = Math.sin(elapsedTime * 1.7 + by * 0.04) * 1.2 + Math.sin(elapsedTime * 0.9 + bx * 0.03) * 0.8;
+    const breathY = Math.cos(elapsedTime * 1.4 + bx * 0.04) * 1.2 + Math.sin(elapsedTime * 1.1 + bz * 0.03) * 0.8;
+    const breathZ = Math.sin(elapsedTime * 1.6 + bz * 0.04) * 1.2 + Math.cos(elapsedTime * 0.8 + by * 0.03) * 0.8;
+
+    // ===== АНИМАЦИЯ ХОДЬБЫ =====
+    let walkX = 0, walkY = 0, walkZ = 0;
+
+    if (isMoving) {
+      // НОГИ (y < 15 — это ноги)
+      if (by < 15) {
+        const legSide = bx > 0 ? 1 : -1;
+        // Ноги двигаются в противофазе
+        const legPhase = legSide * walkSin * 2.5;
+        walkX = legPhase * 0.4;
+        walkY = Math.abs(walkSin) * 1.2;
+        walkZ = walkCos * 0.8 * legSide;
+      }
+
+      // РУКИ (y > 60 и bx > 20 — это руки)
+      if (by > 60 && Math.abs(bx) > 20) {
+        const armSide = bx > 0 ? 1 : -1;
+        // Руки качаются в противофазе с ногами
+        const armPhase = -armSide * walkSin * 1.8;
+        walkX = armPhase * 0.3;
+        walkY = Math.sin(walkCycle + armSide * 1.5) * 0.6;
+        walkZ = walkCos * 0.5 * armSide;
+      }
+
+      // ТОРС (лёгкое покачивание)
+      if (by > 15 && by < 60) {
+        walkX = walkSin * 0.3;
+        walkZ = walkCos * 0.2;
+      }
+
+      // ГОЛОВА (лёгкий наклон)
+      if (by > 80) {
+        walkX = walkSin * 0.15;
+        walkY = Math.sin(walkCycle * 0.5) * 0.2;
+      }
+    }
+
+    const nx = breath + walkX;
+    const ny = breathY + walkY;
+    const nz = breathZ + walkZ;
 
     positions.setXYZ(i, bx + nx, by + ny, bz + nz);
   }
   positions.needsUpdate = true;
 
-  // Управление
-  const input = PlayerInput.getInput();
+  // ===== УПРАВЛЕНИЕ =====
   const isMobile = isMobileDevice();
 
   if (Math.abs(input.moveX) > 0.05 || Math.abs(input.moveZ) > 0.05) {
