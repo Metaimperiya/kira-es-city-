@@ -1,18 +1,30 @@
+// ============================================================
+// ГЛАВНЫЙ ФАЙЛ (С КИБЕР-ГОРОДОМ)
+// ============================================================
+
 import * as THREE from 'three';
 import { initScene, scene, camera, renderer } from './core/scene.js';
 import { createWorld } from './core/world.js';
-import { loadShip, bonfires } from './entities/Ship.js';
+import { createCyberCity } from './entities/CyberCity.js';
 import { createPlayer, initControls, updatePlayer, setDelta } from './entities/Player/index.js';
 import { initSocket } from './network/socket.js';
-import { initSync, updateSync } from './network/sync.js';
+import { initSync } from './network/sync.js';
 import { initChat } from './ui/chat.js';
 import { updateHUD } from './ui/hud.js';
 
-console.log('🚀 Запуск...');
+console.log('🚀 Запуск Kira ES City с Кибер-Городом...');
 
 initScene();
 createWorld();
-await loadShip();
+
+// ===== ВМЕСТО ЗАМКА — КИБЕР-ГОРОД =====
+const cityGroup = createCyberCity();
+scene.add(cityGroup);
+
+// Настраиваем камеру для обзора города
+camera.position.set(30, 25, 40);
+camera.lookAt(0, 0, 0);
+
 initControls();
 createPlayer();
 initSocket();
@@ -27,10 +39,6 @@ function animate() {
   const delta = Math.min(clock.getDelta(), 0.05);
   setDelta(delta);
   updatePlayer();
-
-  // ОБНОВЛЯЕМ КОСТРЫ
-  bonfires.forEach(fire => fire.update(delta));
-
   renderer.render(scene, camera);
 }
 
