@@ -1,7 +1,6 @@
 // ============================================================
 // ВВОД (КЛАВИАТУРА, МЫШЬ, ТЕЛЕФОН)
 // ============================================================
-
 import { renderer } from '../../core/scene.js';
 
 export const PlayerInput = {
@@ -15,12 +14,20 @@ export const PlayerInput = {
 
   init() {
     window.addEventListener('keydown', (e) => {
-      this.keys[e.key.toLowerCase()] = true;
-      this.keys[e.code] = true;
+      // Регистрируем e.key (в нижнем регистре) и e.code (как есть, так и в нижнем регистре для надежности)
+      if (e.key) this.keys[e.key.toLowerCase()] = true;
+      if (e.code) {
+        this.keys[e.code] = true;
+        this.keys[e.code.toLowerCase()] = true;
+      }
     });
+
     window.addEventListener('keyup', (e) => {
-      this.keys[e.key.toLowerCase()] = false;
-      this.keys[e.code] = false;
+      if (e.key) this.keys[e.key.toLowerCase()] = false;
+      if (e.code) {
+        this.keys[e.code] = false;
+        this.keys[e.code.toLowerCase()] = false;
+      }
     });
 
     document.addEventListener('click', (e) => {
@@ -44,78 +51,62 @@ export const PlayerInput = {
   },
 
   initTouch() {
-    const moveZone = document.createElement('div');
-    moveZone.style.cssText = 'position:absolute;top:0;left:0;width:50%;height:100%;z-index:40;touch-action:none;';
-    document.body.appendChild(moveZone);
-
+    // Зона для поворота камеры (правая сторона экрана)
     const lookZone = document.createElement('div');
     lookZone.style.cssText = 'position:absolute;top:0;right:0;width:50%;height:100%;z-index:40;touch-action:none;';
     document.body.appendChild(lookZone);
 
-    let moveId = null, lookId = null;
-    let lastMove = { x: 0, y: 0 };
+    let lookId = null;
+    let startLook = { x: 0, y: 0 };
     let lastLook = { x: 0, y: 0 };
-
-    moveZone.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      const t = e.changedTouches[0];
-      moveId = t.identifier;
-      lastMove = { x: t.clientX, y: t.clientY };
-      this.touchMove = { x: 0, y: 0 };
-    });
-
-    moveZone.addEventListener('touchmove', (e) => {
-      e.preventDefault();
-      for (const t of e.changedTouches) {
-        if (t.identifier === moveId) {
-          this.touchMove.x = t.clientX - lastMove.x;
-          this.touchMove.y = t.clientY - lastMove.y;
-          lastMove = { x: t.clientX, y: t.clientY };
-        }
-      }
-    });
-
-    const resetMove = (e) => {
-      for (const t of e.changedTouches) {
-        if (t.identifier === moveId) {
-          moveId = null;
-          this.touchMove = { x: 0, y: 0 };
-        }
-      }
-    };
-    moveZone.addEventListener('touchend', resetMove);
-    moveZone.addEventListener('touchcancel', () => { moveId = null; this.touchMove = { x: 0, y: 0 }; });
+    let isDragging = false;
+    const SWIPE_THRESHOLD = 8; // Порог в пикселях, чтобы отличить тап (клик) от свайпа
 
     lookZone.addEventListener('touchstart', (e) => {
-      e.preventDefault();
       const t = e.changedTouches[0];
       lookId = t.identifier;
+      startLook = { x: t.clientX, y: t.clientY };
       lastLook = { x: t.clientX, y: t.clientY };
+      isDragging = false;
       this.touchLook = { x: 0, y: 0 };
-    });
+    }, { passive: true });
 
     lookZone.addEventListener('touchmove', (e) => {
-      e.preventDefault();
       for (const t of e.changedTouches) {
         if (t.identifier === lookId) {
-          this.touchLook.x += t.clientX - lastLook.x;
-          this.touchLook.y += t.clientY - lastLook.y;
-          lastLook = { x: t.clientX, y: t.clientY };
+          const dx = t.clientX - startLook.x;
+          const dy = t.clientY - startLook.y;
+
+          // Если палец сдвинулся дальше порога — это свайп (вращение камеры)
+          if (!isDragging && Math.hypot(dx, dy) > SWIPE_THRESHOLD) {
+            isDragging = true;
+          }
+
+          if (isDragging) {
+            if (e.cancelable) e.preventDefault(); // Блокируем скролл страницы при вращении
+            this.touchLook.x += t.clientX - lastLook.x;
+            this.touchLook.y += t.clientY - lastLook.y;
+            lastLook = { x: t.clientX, y: t.clientY };
+          }
         }
       }
-    });
+    }, { passive: false });
 
     const resetLook = (e) => {
       for (const t of e.changedTouches) {
         if (t.identifier === lookId) {
+          // Если это был просто короткий клик (не свайп), то e.preventDefault() НЕ вызывался, 
+          // и событие спокойно долетит до клика по земле (clickControls.js)
           lookId = null;
           this.touchLook = { x: 0, y: 0 };
         }
       }
     };
+
     lookZone.addEventListener('touchend', resetLook);
     lookZone.addEventListener('touchcancel', () => { lookId = null; this.touchLook = { x: 0, y: 0 }; });
 
+    // Кнопка прыжка
     const jumpBtn = document.getElementById('jump-btn');
     if (jumpBtn) {
       jumpBtn.addEventListener('touchstart', (e) => {
@@ -131,12 +122,13 @@ export const PlayerInput = {
 
   getInput() {
     let moveZ = 0;
-    if (this.keys['w'] || this.keys['keyw'] || this.keys['arrowup']) moveZ += 1;
-    if (this.keys['s'] || this.keys['keys'] || this.keys['arrowdown']) moveZ -= 1;
+    // Теперь проверяем и букву (w/ц), и код клавиши (KeyW / keyw)
+    if (this.keys['w'] || this.keys['ц'] || this.keys['keyw'] || this.keys['arrowup']) moveZ += 1;
+    if (this.keys['s'] || this.keys['ы'] || this.keys['keys'] || this.keys['arrowdown']) moveZ -= 1;
 
     let moveX = 0;
-    if (this.keys['d'] || this.keys['keyd'] || this.keys['arrowright']) moveX += 1;
-    if (this.keys['a'] || this.keys['keya'] || this.keys['arrowleft']) moveX -= 1;
+    if (this.keys['d'] || this.keys['в'] || this.keys['keyd'] || this.keys['arrowright']) moveX += 1;
+    if (this.keys['a'] || this.keys['ф'] || this.keys['keya'] || this.keys['arrowleft']) moveX -= 1;
 
     const tx = this.touchMove.x * 0.02;
     const tz = -this.touchMove.y * 0.02;
@@ -148,7 +140,7 @@ export const PlayerInput = {
       mouseY: this.mouseY,
       touchLookX: this.touchLook.x,
       touchLookY: this.touchLook.y,
-      jump: this.keys['space'] || this.keys['Space'] || this.jump
+      jump: this.keys['space'] || this.keys['Space'] || this.keys['spacebar'] || this.jump
     };
 
     this.resetMouse();
