@@ -1,5 +1,5 @@
 // ============================================================
-// ИГРОК (X-RAY GHOST)
+// ИГРОК (X-RAY GHOST) — ПОДНЯТ
 // ============================================================
 
 import * as THREE from 'three';
@@ -207,6 +207,11 @@ export function createPlayer() {
 
   const cloud = new THREE.Points(particleGeo, material);
   cloud.scale.set(0.015, 0.015, 0.015);
+  
+  // ⬇️ ПОДНИМАЕМ ПРИЗРАКА, ЧТОБЫ НОГИ БЫЛИ НА УРОВНЕ ПАЛУБЫ ⬇️
+  // Смещаем вверх на 3 единицы (ноги призрака находятся внизу модели)
+  cloud.position.y = 3.5;
+  
   playerGroup.add(cloud);
 
   // Спавн на корабле
