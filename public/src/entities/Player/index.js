@@ -1,5 +1,5 @@
 // ============================================================
-// ИГРОК (УМЕНЬШЕННЫЙ)
+// ИГРОК (X-RAY GHOST) — С АНИМАЦИЕЙ ХОДЬБЫ
 // ============================================================
 
 import * as THREE from 'three';
@@ -18,6 +18,8 @@ let playerGroup;
 let delta = 0;
 export let velocityY = 0;
 let elapsedTime = 0;
+let walkCycle = 0;
+let isMoving = false;
 
 // ============================================================
 // ПАРАМЕТРЫ ПРИЗРАКА
@@ -29,7 +31,7 @@ let particleBasePositions;
 let particleColors;
 
 // ============================================================
-// ТЕКСТУРЫ СИМВОЛОВ
+// ТЕКСТУРЫ
 // ============================================================
 function makeTexture(char) {
   const c = document.createElement('canvas');
@@ -189,10 +191,6 @@ export function initControls() {
 
 export function createPlayer() {
   playerGroup = new THREE.Group();
-  
-  // ⬇️ УМЕНЬШАЕМ ПЕРСОНАЖА В 3 РАЗА ⬇️
-  playerGroup.scale.set(0.33, 0.33, 0.33);
-  
   scene.add(playerGroup);
 
   generateGhost();
@@ -210,7 +208,8 @@ export function createPlayer() {
 
   const cloud = new THREE.Points(particleGeo, material);
   cloud.scale.set(0.015, 0.015, 0.015);
-  cloud.position.y = 2.5;
+  cloud.position.y = 1.35;
+
   playerGroup.add(cloud);
 
   const spawn = teleportToShip();
@@ -250,6 +249,65 @@ export function updatePlayer() {
   if (!particleGeo) return;
 
   const input = PlayerInput.getInput();
+  const isMovingNow = Math.abs(input.moveX) > 0.05 || Math.abs(input.moveZ) > 0.05 || isClickMoving;
+
+  if (isMovingNow) {
+    walkCycle += delta * 10;
+    isMoving = true;
+  } else {
+    isMoving = false;
+    walkCycle *= 0.85;
+  }
+
+  elapsedTime += delta;
+
+  const positions = particleGeo.attributes.position;
+  const walkSin = Math.sin(walkCycle);
+  const walkCos = Math.cos(walkCycle);
+
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const bx = particleBasePositions[i * 3];
+    const by = particleBasePositions[i * 3 + 1];
+    const bz = particleBasePositions[i * 3 + 2];
+
+    // 💀 ГОЛОВА (Y > 80) — ОСТАЁТСЯ В ПОКОЕ
+    if (by > 80) {
+      positions.setXYZ(i, bx, by, bz);
+      continue;
+    }
+
+    // 🌬️ ДЫХАНИЕ (мелкая пульсация)
+    const breath = Math.sin(elapsedTime * 1.7 + by * 0.04) * 1.2 + Math.sin(elapsedTime * 0.9 + bx * 0.03) * 0.8;
+    const breathY = Math.cos(elapsedTime * 1.4 + bx * 0.04) * 1.2 + Math.sin(elapsedTime * 1.1 + bz * 0.03) * 0.8;
+    const breathZ = Math.sin(elapsedTime * 1.6 + bz * 0.04) * 1.2 + Math.cos(elapsedTime * 0.8 + by * 0.03) * 0.8;
+
+    let walkX = 0, walkY = 0, walkZ = 0;
+
+    if (isMoving) {
+      // 🦵 НОГИ (Y < 20) — шагают в противофазе
+      if (by < 20) {
+        const legSide = bx > 0 ? 1 : -1;
+        walkZ = legSide * walkSin * 15;
+        walkY = Math.max(0, legSide * walkSin) * 6;
+      }
+      // 🖐️ РУКИ (Y > 50) — качаются в противофазе с ногами
+      else if (by > 50 && Math.abs(bx) > 18) {
+        const armSide = bx > 0 ? 1 : -1;
+        walkZ = -armSide * walkSin * 12;
+        walkX = -armSide * Math.abs(walkSin) * 2;
+      }
+      // 🎽 ТОРС — покачивается
+      else {
+        walkY = Math.abs(walkSin) * 2;
+        walkX = walkCos * 1.5;
+      }
+    }
+
+    positions.setXYZ(i, bx + breath + walkX, by + breathY + walkY, bz + breathZ + walkZ);
+  }
+  positions.needsUpdate = true;
+
+  // ===== УПРАВЛЕНИЕ =====
   const isMobile = isMobileDevice();
 
   if (Math.abs(input.moveX) > 0.05 || Math.abs(input.moveZ) > 0.05) {
