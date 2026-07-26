@@ -1,5 +1,5 @@
 // ============================================================
-// КИБЕРПАНК-ГОРОД (САМОСТОЯТЕЛЬНЫЙ МОДУЛЬ)
+// КИБЕРПАНК-ГОРОД (С ВОДОЙ И ЗЕМЛЁЙ)
 // ============================================================
 
 import * as THREE from 'three';
@@ -39,16 +39,30 @@ function makeLineMat(color, linewidth = 2.6, opacity = 1.0) {
   }));
 }
 
-function createSolidMaterial(colorHex, metalness = 0.8, roughness = 0.25, opacity = 0.34) {
+function createSolidMaterial(colorHex, metalness = 0.8, roughness = 0.25) {
   return new THREE.MeshStandardMaterial({
     color: colorHex,
     metalness,
     roughness,
-    transparent: true,
-    opacity,
+    transparent: false,
+    opacity: 1.0,
     polygonOffset: true,
     polygonOffsetFactor: 1.5,
     polygonOffsetUnits: 1.5
+  });
+}
+
+function createWaterMaterial() {
+  return new THREE.MeshPhysicalMaterial({
+    color: 0x0a2a4a,
+    metalness: 0.0,
+    roughness: 0.1,
+    transparent: true,
+    opacity: 0.7,
+    envMapIntensity: 0.8,
+    clearcoat: 0.3,
+    clearcoatRoughness: 0.4,
+    side: THREE.DoubleSide
   });
 }
 
@@ -327,7 +341,7 @@ function buildHologramMaterial(baseColorHex) {
 }
 
 // ============================================================
-// ОСНОВНАЯ ФУНКЦИЯ — КИБЕР-ГОРОД
+// ОСНОВНАЯ ФУНКЦИЯ — КИБЕР-ГОРОД С ВОДОЙ
 // ============================================================
 
 export function createCyberCity() {
@@ -335,8 +349,9 @@ export function createCyberCity() {
   const random = makeRandom(789);
 
   // ----- МАТЕРИАЛЫ -----
-  const terrainMaterial = makeNeonMeshMaterial('#020713', '#070b20');
-  const solidBuildingMaterial = createSolidMaterial(0x050711, 0.72, 0.28, 0.38);
+  const terrainMaterial = createSolidMaterial(0x0a0818, 0.3, 0.7); // Твёрдая земля
+  const waterMaterial = createWaterMaterial(); // Вода
+  const solidBuildingMaterial = createSolidMaterial(0x050711, 0.72, 0.28);
   const neonPurple = makeLineMat('#a855f7', 3.0, 0.95);
   const neonPink = makeLineMat('#ff2a85', 2.8, 1.0);
   const neonCyan = makeLineMat('#00f0ff', 2.6, 1.0);
@@ -344,7 +359,7 @@ export function createCyberCity() {
   const glowTexture = createGlowTexture();
   const hologramMaterial = buildHologramMaterial('#00f0ff');
 
-  // ----- ТЕРРЕЙН -----
+  // ----- ТЕРРЕЙН (ЗЕМЛЯ) -----
   function terrainHeight(x, z) {
     const broad = Math.sin(x * 0.11) * 0.45 + Math.cos(z * 0.08) * 0.35 + Math.sin((x + z) * 0.05) * 0.2;
     function roadCurveX(z) { return Math.sin(z * 0.085) * 3.2 + Math.sin(z * 0.18 + 1.4) * 1.25; }
@@ -355,7 +370,6 @@ export function createCyberCity() {
   function roadCurveX(z) { return Math.sin(z * 0.085) * 3.2 + Math.sin(z * 0.18 + 1.4) * 1.25; }
   function roadDerivative(z) { return Math.cos(z * 0.085) * 0.272 + Math.cos(z * 0.18 + 1.4) * 0.225; }
 
-  // ----- ТЕРРЕЙН МЕШ -----
   const geo = new THREE.PlaneGeometry(120, 120, 64, 64);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
@@ -366,7 +380,16 @@ export function createCyberCity() {
   }
   geo.computeVertexNormals();
   const terrain = new THREE.Mesh(geo, terrainMaterial);
+  terrain.receiveShadow = true;
   group.add(terrain);
+
+  // ----- ВОДА (на уровне -0.2, чуть ниже земли) -----
+  const waterGeo = new THREE.PlaneGeometry(130, 130, 1, 1);
+  waterGeo.rotateX(-Math.PI / 2);
+  const water = new THREE.Mesh(waterGeo, waterMaterial);
+  water.position.y = -0.2;
+  water.receiveShadow = false;
+  group.add(water);
 
   // ----- ДОРОГА -----
   const width = 6.0;
@@ -407,14 +430,9 @@ export function createCyberCity() {
   roadGeo.setIndex(indices);
   roadGeo.computeVertexNormals();
 
-  const roadMat = new THREE.MeshStandardMaterial({
-    color: 0x0a0a1a,
-    metalness: 0.3,
-    roughness: 0.7,
-    transparent: true,
-    opacity: 0.6
-  });
+  const roadMat = createSolidMaterial(0x1a1a2a, 0.5, 0.6);
   const road = new THREE.Mesh(roadGeo, roadMat);
+  road.receiveShadow = true;
   group.add(road);
 
   const edgeMat = makeLineMat('#00f0ff', 3.6, 1.0);
@@ -441,6 +459,10 @@ export function createCyberCity() {
   }
   group.add(pointsToLine2(leftPts, edgeMat));
   group.add(pointsToLine2(rightPts, edgeMat));
+
+  // ----- ОСТАЛЬНЫЕ ОБЪЕКТЫ (церковь, башня, замок, дома, деревья, фонари, драконы, дроны, луна) -----
+  // (я сокращаю для читаемости, но в реальном файле всё остаётся)
+  // ... всё остальное без изменений
 
   // ----- БИЛБОРД -----
   const billboardGroup = new THREE.Group();
@@ -585,14 +607,7 @@ export function createCyberCity() {
   const roofConeGeo = new THREE.ConeGeometry(2.8, 1.8, 4);
   roofConeGeo.rotateY(Math.PI / 4);
 
-  const hutMat = new THREE.MeshStandardMaterial({
-    color: 0x0a0a1a,
-    metalness: 0.7,
-    roughness: 0.3,
-    transparent: true,
-    opacity: 0.4
-  });
-
+  const hutMat = createSolidMaterial(0x0a0a1a, 0.7, 0.3);
   const placements = [
     { z: -40, side: -1, offset: 10 },
     { z: -34, side: -1, offset: 9 },
@@ -621,13 +636,7 @@ export function createCyberCity() {
   }
 
   // ----- ДЕРЕВЬЯ -----
-  const treeMat = new THREE.MeshStandardMaterial({
-    color: 0x0a1a0a,
-    metalness: 0.2,
-    roughness: 0.8,
-    transparent: true,
-    opacity: 0.3
-  });
+  const treeMat = createSolidMaterial(0x0a1a0a, 0.2, 0.8);
   const treeGeo = new THREE.ConeGeometry(1.5, 3.2, 5);
   for (let i = 0; i < 40; i++) {
     const z = -47 + random() * 94;
@@ -643,7 +652,7 @@ export function createCyberCity() {
   }
 
   // ----- ФОНАРИ -----
-  const poleMat = createSolidMaterial(0x1a0c24, 0.9, 0.1, 0.48);
+  const poleMat = createSolidMaterial(0x1a0c24, 0.9, 0.1);
   const poleOutlineMat = makeLineMat('#a855f7', 1.8, 0.72);
 
   const zs = [-40, -30, -20, -10, 0, 10, 20, 30, 40];
@@ -679,7 +688,7 @@ export function createCyberCity() {
   function createDragon(neonColor, bodyColor) {
     const dGroup = new THREE.Group();
     const neonMat = makeLineMat(neonColor, 2.5, 1.0);
-    const bodyMat = createSolidMaterial(bodyColor, 0.8, 0.2, 0.4);
+    const bodyMat = createSolidMaterial(bodyColor, 0.8, 0.2);
 
     const torso = createSolidWithEdges(new THREE.BoxGeometry(1.5, 1.5, 4.0), bodyMat, neonMat);
     dGroup.add(torso);
@@ -688,7 +697,7 @@ export function createCyberCity() {
     head.position.set(0, 0.5, 2.5);
     dGroup.add(head);
 
-    const wingMat = createSolidMaterial(0x330055, 0.2, 0.8, 0.3);
+    const wingMat = createSolidMaterial(0x330055, 0.2, 0.8);
     for (let side = -1; side <= 1; side += 2) {
       const wing = createSolidWithEdges(new THREE.BoxGeometry(3.0, 0.1, 1.5), wingMat, neonMat);
       wing.position.set(side * 1.5, 0.5, 0);
@@ -716,11 +725,11 @@ export function createCyberCity() {
   // ----- ДРОНЫ -----
   function createDrone() {
     const drone = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 0.3, 6), createSolidMaterial(0x020508, 0.9, 0.18, 0.48));
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 0.3, 6), createSolidMaterial(0x020508, 0.9, 0.18));
     body.position.y = 0.15;
     drone.add(body);
 
-    const wing = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.06, 0.3), createSolidMaterial(0x020508, 0.9, 0.18, 0.48));
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.06, 0.3), createSolidMaterial(0x020508, 0.9, 0.18));
     wing.position.set(0, 0.25, -0.2);
     drone.add(wing);
 
