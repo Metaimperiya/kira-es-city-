@@ -14,8 +14,7 @@ const downVector = new THREE.Vector3(0, -1, 0);
 const moveVector = new THREE.Vector3();
 const rayOrigin = new THREE.Vector3();
 
-// Максимальная высота ступеньки/бордюра, на которую запрыгиваем автоматом
-const MAX_STEP_HEIGHT = 0.6; 
+const MAX_STEP_HEIGHT = 0.7; // Макс. высота ступени для зашагивания
 
 export const PlayerController = {
   group: null,
@@ -49,50 +48,46 @@ export const PlayerController = {
       let dz = (-normZ * cos - normX * sin) * speed * delta;
 
       if (mainShip) {
-        // --- ПРОВЕРКА ПО ОСИ X ---
+        // --- ДВИЖЕНИЕ И СТУПЕНИ X ---
         if (dx !== 0) {
           moveVector.set(Math.sign(dx), 0, 0);
-          // 1. Проверяем препятствие у ног (высота 0.25)
-          rayOrigin.set(this.pos.x, this.pos.y + 0.25, this.pos.z);
+          rayOrigin.set(this.pos.x, this.pos.y + 0.2, this.pos.z);
           forwardRaycaster.set(rayOrigin, moveVector);
           const hits = forwardRaycaster.intersectObject(mainShip, true);
 
           if (hits.length > 0 && hits[0].distance < 0.7) {
             if (Math.abs(hits[0].face.normal.y) < 0.5) {
-              // 2. Проверяем, свободен ли путь чуть выше (зашагивание на ступеньку)
+              // Проверяем свободное место чуть выше
               rayOrigin.set(this.pos.x, this.pos.y + MAX_STEP_HEIGHT, this.pos.z);
               stepRaycaster.set(rayOrigin, moveVector);
               const stepHits = stepRaycaster.intersectObject(mainShip, true);
 
-              // Если сверху пусто или препятствие дальше — подтягиваем Y вверх
               if (stepHits.length === 0 || stepHits[0].distance >= 0.7) {
-                this.pos.y += 0.15; 
+                this.pos.y += 0.2; // Запрыгиваем на ступень
               } else {
-                dx = 0; // Иначе это высокая стена, блокируем
+                dx = 0; // Стена high-wall
               }
             }
           }
         }
 
-        // --- ПРОВЕРКА ПО ОСИ Z ---
+        // --- ДВИЖЕНИЕ И СТУПЕНИ Z ---
         if (dz !== 0) {
           moveVector.set(0, 0, Math.sign(dz));
-          // 1. Проверяем препятствие у ног (высота 0.25)
-          rayOrigin.set(this.pos.x + dx, this.pos.y + 0.25, this.pos.z);
+          rayOrigin.set(this.pos.x + dx, this.pos.y + 0.2, this.pos.z);
           forwardRaycaster.set(rayOrigin, moveVector);
           const hits = forwardRaycaster.intersectObject(mainShip, true);
 
           if (hits.length > 0 && hits[0].distance < 0.7) {
             if (Math.abs(hits[0].face.normal.y) < 0.5) {
-              // 2. Проверяем, свободен ли путь чуть выше
               rayOrigin.set(this.pos.x + dx, this.pos.y + MAX_STEP_HEIGHT, this.pos.z);
               stepRaycaster.set(rayOrigin, moveVector);
               const stepHits = stepRaycaster.intersectObject(mainShip, true);
 
               if (stepHits.length === 0 || stepHits[0].distance >= 0.7) {
-                this.pos.y += 0.15;
+                this.pos.y += 0.2; // Запрыгиваем на ступень
               } else {
-                dz = 0; // Иначе высокая стена
+                dz = 0;
               }
             }
           }
@@ -116,7 +111,7 @@ export const PlayerController = {
 
       if (hits.length > 0) {
         const hit = hits[0];
-        if (hit.point.y >= -1 && (this.pos.y + 3 - hit.point.y) <= 20) {
+        if (hit.point.y >= -1.5 && (this.pos.y + 3 - hit.point.y) <= 20) {
           floorY = hit.point.y;
         }
       }
@@ -144,7 +139,6 @@ export const PlayerController = {
         this.isGrounded = true;
       }
     } else {
-      // Плавное притягивание к полу (включая подъем по ступенькам вверх)
       this.pos.y = floorY;
     }
 
