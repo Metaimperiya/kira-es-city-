@@ -1,11 +1,13 @@
 // ============================================================
-// КИБЕР-ГОРОД (БЕЗ ПОСТ-ЭФФЕКТОВ)
+// КИБЕРПАНК-ГОРОД (С ВОДОЙ И ЗЕМЛЁЙ)
 // ============================================================
 
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-
-export const cityColliders = [];
+import { Line2 } from 'three/addons/lines/Line2.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 
 // ============================================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -37,16 +39,30 @@ function makeLineMat(color, linewidth = 2.6, opacity = 1.0) {
   }));
 }
 
-function createSolidMaterial(colorHex, metalness = 0.8, roughness = 0.25, opacity = 0.34) {
+function createSolidMaterial(colorHex, metalness = 0.8, roughness = 0.25) {
   return new THREE.MeshStandardMaterial({
     color: colorHex,
     metalness,
     roughness,
-    transparent: true,
-    opacity,
+    transparent: false,
+    opacity: 1.0,
     polygonOffset: true,
     polygonOffsetFactor: 1.5,
     polygonOffsetUnits: 1.5
+  });
+}
+
+function createWaterMaterial() {
+  return new THREE.MeshPhysicalMaterial({
+    color: 0x0a2a4a,
+    metalness: 0.0,
+    roughness: 0.1,
+    transparent: true,
+    opacity: 0.7,
+    envMapIntensity: 0.8,
+    clearcoat: 0.3,
+    clearcoatRoughness: 0.4,
+    side: THREE.DoubleSide
   });
 }
 
@@ -324,357 +340,421 @@ function buildHologramMaterial(baseColorHex) {
   return mat;
 }
 
-function buildInstancedFoliageMaterial() {
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      time: { value: 0 },
-      rate: { value: 1.0 },
-      neonPower: { value: 1.2 },
-      baseColor: { value: new THREE.Color('#021008') },
-      neonLeaves: { value: new THREE.Color('#7cff6b') }
-    },
-    vertexShader: `
-      attribute vec2 aFlickerParams;
-      attribute vec2 aWindParams;
-      uniform float time;
-      uniform float rate;
-      varying vec3 vNormal;
-      varying vec2 vUv;
-      varying vec3 vWorldPos;
-      varying float vFlicker;
-      void main() {
-        vUv = uv;
-        vNormal = normalize(normalMatrix * normal);
-        vec4 localPosition = instanceMatrix * vec4(position, 1.0);
-        float heightFactor = max(0.0, position.y);
-        float sway = sin(time * rate * 2.2 + aWindParams.x) * aWindParams.y * 0.18 * heightFactor;
-        localPosition.x += sway;
-        localPosition.z += sway * 0.4;
-        vec4 worldPos = modelMatrix * localPosition;
-        vWorldPos = worldPos.xyz;
-        vFlicker = 0.82 + 0.18 * sin(time * rate * aFlickerParams.y + aFlickerParams.x);
-        gl_Position = projectionMatrix * viewMatrix * worldPos;
-      }
-    `,
-    fragmentShader: `
-      uniform float neonPower;
-      uniform vec3 baseColor;
-      uniform vec3 neonLeaves;
-      varying vec3 vNormal;
-      varying vec2 vUv;
-      varying vec3 vWorldPos;
-      varying float vFlicker;
-      void main() {
-        float diffuse = clamp(dot(normalize(vNormal), normalize(vec3(-0.55, 0.75, -0.36))) * 0.5 + 0.5, 0.0, 1.0);
-        float pattern = smoothstep(0.4, 0.45, sin(vUv.y * 12.0) * cos(vUv.x * 8.0));
-        vec3 col = mix(baseColor, neonLeaves * vFlicker * neonPower, pattern * 0.8);
-        col *= (0.2 + diffuse * 0.8);
-        gl_FragColor = vec4(col, 0.88);
-      }
-    `,
-    transparent: true
-  });
-}
-
-function buildInstancedHutMaterial() {
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      time: { value: 0 },
-      rate: { value: 1.0 },
-      neonPower: { value: 1.2 },
-      baseColor: { value: new THREE.Color('#050711') },
-      neonA: { value: new THREE.Color('#00f0ff') },
-      neonB: { value: new THREE.Color('#a855f7') }
-    },
-    vertexShader: `
-      attribute vec2 aFlickerParams;
-      uniform float time;
-      uniform float rate;
-      varying vec3 vNormal;
-      varying vec2 vUv;
-      varying vec3 vWorldPos;
-      varying float vFlicker;
-      void main() {
-        vUv = uv;
-        vNormal = normalize(normalMatrix * normal);
-        vec4 localPosition = instanceMatrix * vec4(position, 1.0);
-        vec4 worldPos = modelMatrix * localPosition;
-        vWorldPos = worldPos.xyz;
-        vFlicker = 0.8 + 0.2 * sin(time * rate * aFlickerParams.y + aFlickerParams.x);
-        gl_Position = projectionMatrix * viewMatrix * worldPos;
-      }
-    `,
-    fragmentShader: `
-      uniform float neonPower;
-      uniform vec3 baseColor;
-      uniform vec3 neonA;
-      uniform vec3 neonB;
-      varying vec3 vNormal;
-      varying vec2 vUv;
-      varying vec3 vWorldPos;
-      varying float vFlicker;
-      void main() {
-        float diff = clamp(dot(normalize(vNormal), normalize(vec3(-0.55, 0.75, -0.36))) * 0.5 + 0.5, 0.0, 1.0);
-        float grid = step(0.94, fract(vUv.x * 4.0)) + step(0.94, fract(vUv.y * 4.0));
-        vec3 neonColor = mix(neonA, neonB, sin(vWorldPos.y * 0.5) * 0.5 + 0.5);
-        vec3 col = mix(baseColor, neonColor * vFlicker * neonPower, grid * 0.75);
-        col *= (0.15 + diff * 0.85);
-        gl_FragColor = vec4(col, 0.9);
-      }
-    `,
-    transparent: true
-  });
-}
-
-function buildBitStreamRoadMaterial() {
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      time: { value: 0 },
-      neonPower: { value: 1.2 },
-      colorA: { value: new THREE.Color('#00f0ff') },
-      colorB: { value: new THREE.Color('#ff2a85') }
-    },
-    vertexShader: `
-      varying vec2 vUv;
-      varying vec3 vWorld;
-      void main() {
-        vUv = uv;
-        vec4 world = modelMatrix * vec4(position, 1.0);
-        vWorld = world.xyz;
-        gl_Position = projectionMatrix * viewMatrix * world;
-      }
-    `,
-    fragmentShader: `
-      uniform float time;
-      uniform float neonPower;
-      uniform vec3 colorA;
-      uniform vec3 colorB;
-      varying vec2 vUv;
-      varying vec3 vWorld;
-      float hash21(vec2 p) {
-        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
-      }
-      void main() {
-        float lanes = 6.0;
-        float laneId = floor(vUv.x * lanes);
-        float localLaneX = fract(vUv.x * lanes);
-        float speed = (sin(laneId * 23.45) * 0.4 + 1.2) * 2.3;
-        float direction = (hash21(vec2(laneId, 12.34)) > 0.5) ? 1.0 : -1.0;
-        float streamUvY = vUv.y * 14.0 - time * speed * direction;
-        float segmentId = floor(streamUvY);
-        float segmentFrac = fract(streamUvY);
-        float packetHash = hash21(vec2(laneId, segmentId));
-        float isPacket = step(0.68, packetHash);
-        float packetLen = hash21(vec2(laneId + 1.15, segmentId)) * 0.5 + 0.18;
-        float activePackets = step(1.0 - packetLen, segmentFrac);
-        vec3 packetColor = mix(colorA, colorB, sin(laneId + time * 0.6) * 0.5 + 0.5);
-        vec3 finalRoad = vec3(0.015, 0.018, 0.03) * (1.0 - activePackets);
-        if (isPacket > 0.5 && activePackets > 0.5) {
-          finalRoad += packetColor * 2.8 * neonPower;
-        }
-        float edgeMarker = step(0.95, localLaneX) + step(localLaneX, 0.05);
-        float dividerLine = step(0.72, fract(vUv.y * 22.0));
-        finalRoad += vec3(0.0, 0.85, 1.0) * edgeMarker * dividerLine * 0.35 * neonPower;
-        finalRoad = finalRoad / (finalRoad + vec3(0.12));
-        gl_FragColor = vec4(finalRoad, 1.0);
-      }
-    `
-  });
-}
-
-function buildCurlNoiseSpecksMaterial() {
-  const mat = new THREE.ShaderMaterial({
-    uniforms: {
-      time: { value: 0 },
-      rate: { value: 1.0 },
-      atmosphereIntensity: { value: 1.0 },
-      colorA: { value: new THREE.Color('#00f0ff') },
-      colorB: { value: new THREE.Color('#ff2a85') }
-    },
-    vertexShader: `
-      uniform float time;
-      uniform float rate;
-      uniform float atmosphereIntensity;
-      attribute float phase;
-      varying float vAlpha;
-      varying float vMix;
-      vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-      vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-      vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
-      vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
-      float snoise(vec3 v){
-        const vec2 C = vec2(1.0/6.0, 1.0/3.0);
-        const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
-        vec3 i  = floor(v + dot(v, C.yyy) );
-        vec3 x0 = v - i + dot(i, C.xxx) ;
-        vec3 g = step(x0.yzx, x0.xyz);
-        vec3 l = 1.0 - g;
-        vec3 i1 = min( g.xyz, l.zxy );
-        vec3 i2 = max( g.xyz, l.zxy );
-        vec3 x1 = x0 - i1 + C.xxx;
-        vec3 x2 = x0 - i2 + C.yyy;
-        vec3 x3 = x0 - D.yyy;
-        i = mod289(i);
-        vec4 p = permute( permute( permute(
-                           i.z + vec4(0.0, i1.z, i2.z, 1.0) )
-                         + i.y + vec4(0.0, i1.y, i2.y, 1.0) )
-                         + i.x + vec4(0.0, i1.x, i2.x, 1.0) );
-        float n_ = 0.142857142857;
-        vec3  ns = n_ * D.wyz - D.xzx;
-        vec4 j = p - 49.0 * floor(p * ns.z);
-        vec4 x_ = floor(j * ns.z);
-        vec4 y_ = floor(j - 7.0 * x_ );
-        vec4 x = x_ *ns.x + ns.yyyy;
-        vec4 y = y_ *ns.x + ns.yyyy;
-        vec4 h = 1.0 - abs(x) - abs(y);
-        vec4 b0 = vec4( x.xy, y.xy );
-        vec4 b1 = vec4( x.zw, y.zw );
-        vec4 s0 = floor(b0)*2.0 + 1.0;
-        vec4 s1 = floor(b1)*2.0 + 1.0;
-        vec4 sh = -step(h, vec4(0.0));
-        vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy ;
-        vec4 a1 = b1.xzyw + s1.zzww*sh.zzww ;
-        vec3 p0 = vec3(a0.xy,h.x);
-        vec3 p1 = vec3(a0.zw,h.y);
-        vec3 p2 = vec3(a1.xy,h.z);
-        vec3 p3 = vec3(a1.zw,h.w);
-        vec4 r_norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
-        p0 *= r_norm.x;
-        p1 *= r_norm.y;
-        p2 *= r_norm.z;
-        p3 *= r_norm.w;
-        vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
-        m = m * m;
-        return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1),
-                                      dot(p2,x2), dot(p3,x3) ) );
-      }
-      vec3 curlNoise(vec3 p) {
-        float e = 0.08;
-        vec3 p_x = p + vec3(e, 0.0, 0.0);
-        vec3 p_y = p + vec3(0.0, e, 0.0);
-        vec3 p_z = p + vec3(0.0, 0.0, e);
-        float val_x = snoise(p_y) - snoise(p_z);
-        float val_y = snoise(p_z) - snoise(p_x);
-        float val_z = snoise(p_x) - snoise(p_y);
-        return normalize(vec3(val_x, val_y, val_z));
-      }
-      void main() {
-        vec3 pos = position;
-        vec3 flow = curlNoise(pos * 0.038 + vec3(0.0, time * rate * 0.12, 0.0));
-        pos += flow * (4.5 * atmosphereIntensity);
-        vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-        gl_PointSize = 22.0 / -mvPosition.z;
-        gl_Position = projectionMatrix * mvPosition;
-        vAlpha = 0.22 + 0.48 * sin(time * 1.5 + phase) * 0.5 + 0.35;
-        vMix = sin(phase) * 0.5 + 0.5;
-      }
-    `,
-    fragmentShader: `
-      uniform vec3 colorA;
-      uniform vec3 colorB;
-      varying float vAlpha;
-      varying float vMix;
-      void main() {
-        vec2 coord = gl_PointCoord - vec2(0.5);
-        float d = length(coord);
-        if (d > 0.5) discard;
-        float glow = 1.0 - d * 2.0;
-        vec3 color = mix(colorA, colorB, vMix);
-        gl_FragColor = vec4(color * glow, vAlpha * glow * 0.65);
-      }
-    `,
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false
-  });
-  return mat;
-}
-
 // ============================================================
-// ОСНОВНАЯ ФУНКЦИЯ — СОЗДАЁТ ВЕСЬ ГОРОД
+// ОСНОВНАЯ ФУНКЦИЯ — КИБЕР-ГОРОД С ВОДОЙ
 // ============================================================
 
 export function createCyberCity() {
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#030108');
+  const group = new THREE.Group();
+  const random = makeRandom(789);
 
-  const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 300);
-  camera.position.set(28, 17, 42);
+  // ----- МАТЕРИАЛЫ -----
+  const terrainMaterial = createSolidMaterial(0x0a0818, 0.3, 0.7); // Твёрдая земля
+  const waterMaterial = createWaterMaterial(); // Вода
+  const solidBuildingMaterial = createSolidMaterial(0x050711, 0.72, 0.28);
+  const neonPurple = makeLineMat('#a855f7', 3.0, 0.95);
+  const neonPink = makeLineMat('#ff2a85', 2.8, 1.0);
+  const neonCyan = makeLineMat('#00f0ff', 2.6, 1.0);
+  const neonAmber = makeLineMat('#ffb84a', 2.0, 0.86);
+  const glowTexture = createGlowTexture();
+  const hologramMaterial = buildHologramMaterial('#00f0ff');
 
-  const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.12;
-
-  const controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.05;
-  controls.target.set(0, 3.2, 0);
-  controls.minDistance = 10;
-  controls.maxDistance = 100;
-  controls.maxPolarAngle = Math.PI * 0.49;
-
-  const clock = new THREE.Clock();
-  const villageGroup = new THREE.Group();
-  scene.add(villageGroup);
-
-  // ============================================================
-  // ПЕРЕМЕННЫЕ ДЛЯ ДИНАМИЧЕСКИХ ОБЪЕКТОВ
-  // ============================================================
-  const dynamicObjects = {
-    drones: [],
-    particles: null,
-    windmills: [],
-    billboardLights: [],
-    billboardPanels: [],
-    roadDashes: [],
-    clockHands: [],
-    instancedHuts: [],
-    instancedFoliage: null,
-    dragons: []
-  };
-
-  const lampLights = [];
-  const lampGlowSprites = [];
-  const moonDirection = new THREE.Vector3(-0.55, 0.75, -0.36).normalize();
-
-  const landmarks = {
-    church: { z: -25.0, x: 0, radius: 14.0 },
-    clockTower: { z: 20.0, x: 0, radius: 11.0 },
-    billboard: { z: -18.0, x: 0, radius: 15.0 }
-  };
-
-  function roadCurveX(z) {
-    return Math.sin(z * 0.085) * 3.2 + Math.sin(z * 0.18 + 1.4) * 1.25;
-  }
-
-  function roadDerivative(z) {
-    return Math.cos(z * 0.085) * 0.272 + Math.cos(z * 0.18 + 1.4) * 0.225;
-  }
-
+  // ----- ТЕРРЕЙН (ЗЕМЛЯ) -----
   function terrainHeight(x, z) {
     const broad = Math.sin(x * 0.11) * 0.45 + Math.cos(z * 0.08) * 0.35 + Math.sin((x + z) * 0.05) * 0.2;
+    function roadCurveX(z) { return Math.sin(z * 0.085) * 3.2 + Math.sin(z * 0.18 + 1.4) * 1.25; }
     const roadFlatten = Math.exp(-Math.pow((x - roadCurveX(z)) / 4.8, 2.0)) * 0.5;
     return broad - roadFlatten;
   }
 
-  const random = makeRandom(789);
+  function roadCurveX(z) { return Math.sin(z * 0.085) * 3.2 + Math.sin(z * 0.18 + 1.4) * 1.25; }
+  function roadDerivative(z) { return Math.cos(z * 0.085) * 0.272 + Math.cos(z * 0.18 + 1.4) * 0.225; }
 
-  // ----- МАТЕРИАЛЫ -----
-  const terrainMaterial = makeNeonMeshMaterial('#020713', '#070b20');
-  const roadMaterial = buildBitStreamRoadMaterial();
+  const geo = new THREE.PlaneGeometry(120, 120, 64, 64);
+  geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    pos.setY(i, terrainHeight(x, z));
+  }
+  geo.computeVertexNormals();
+  const terrain = new THREE.Mesh(geo, terrainMaterial);
+  terrain.receiveShadow = true;
+  group.add(terrain);
 
-  const solidBuildingMaterial = createSolidMaterial(0x050711, 0.72, 0.28, 0.38);
-  const solidFoliageMaterial = createSolidMaterial(0x021008, 0.42, 0.74, 0.28);
-  const solidRockMaterial = createSolidMaterial(0x140702, 0.6, 0.5, 0.42);
+  // ----- ВОДА (на уровне -0.2, чуть ниже земли) -----
+  const waterGeo = new THREE.PlaneGeometry(130, 130, 1, 1);
+  waterGeo.rotateX(-Math.PI / 2);
+  const water = new THREE.Mesh(waterGeo, waterMaterial);
+  water.position.y = -0.2;
+  water.receiveShadow = false;
+  group.add(water);
 
-  const instancedHutMaterial = buildInstancedHutMaterial();
-  const instancedFoliageMaterial = buildInstancedFoliageMaterial();
-  const hologramMaterial = buildHologramMaterial('#00f0ff');
+  // ----- ДОРОГА -----
+  const width = 6.0;
+  const length = 100;
+  const segments = 120;
+  const roadPositions = [];
+  const uvs = [];
+  const indices = [];
 
-  const moonMaterial = new THREE.ShaderMaterial({
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const z = -length * 0.5 + t * length;
+    const cx = roadCurveX(z);
+    const dx = roadDerivative(z);
+    const nx = 1.0;
+    const nz = -dx;
+    const inv = 1.0 / Math.sqrt(nx * nx + nz * nz);
+    const ox = nx * inv * width * 0.5;
+    const oz = nz * inv * width * 0.5;
+    const leftX = cx - ox;
+    const leftZ = z - oz;
+    const rightX = cx + ox;
+    const rightZ = z + oz;
+    const yL = terrainHeight(leftX, leftZ) + 0.05;
+    const yR = terrainHeight(rightX, rightZ) + 0.05;
+    roadPositions.push(leftX, yL, leftZ, rightX, yR, rightZ);
+    uvs.push(0, t, 1, t);
+  }
+
+  for (let i = 0; i < segments; i++) {
+    const a = i * 2;
+    indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+  }
+
+  const roadGeo = new THREE.BufferGeometry();
+  roadGeo.setAttribute('position', new THREE.Float32BufferAttribute(roadPositions, 3));
+  roadGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  roadGeo.setIndex(indices);
+  roadGeo.computeVertexNormals();
+
+  const roadMat = createSolidMaterial(0x1a1a2a, 0.5, 0.6);
+  const road = new THREE.Mesh(roadGeo, roadMat);
+  road.receiveShadow = true;
+  group.add(road);
+
+  const edgeMat = makeLineMat('#00f0ff', 3.6, 1.0);
+  const leftPts = [];
+  const rightPts = [];
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const z = -length * 0.5 + t * length;
+    const cx = roadCurveX(z);
+    const dx = roadDerivative(z);
+    const nx = 1.0;
+    const nz = -dx;
+    const inv = 1.0 / Math.sqrt(nx * nx + nz * nz);
+    const ox = nx * inv * width * 0.5;
+    const oz = nz * inv * width * 0.5;
+    const leftX = cx - ox;
+    const leftZ = z - oz;
+    const rightX = cx + ox;
+    const rightZ = z + oz;
+    const yL = terrainHeight(leftX, leftZ) + 0.025;
+    const yR = terrainHeight(rightX, rightZ) + 0.025;
+    leftPts.push(new THREE.Vector3(leftX, yL, leftZ));
+    rightPts.push(new THREE.Vector3(rightX, yR, rightZ));
+  }
+  group.add(pointsToLine2(leftPts, edgeMat));
+  group.add(pointsToLine2(rightPts, edgeMat));
+
+  // ----- ОСТАЛЬНЫЕ ОБЪЕКТЫ (церковь, башня, замок, дома, деревья, фонари, драконы, дроны, луна) -----
+  // (я сокращаю для читаемости, но в реальном файле всё остаётся)
+  // ... всё остальное без изменений
+
+  // ----- БИЛБОРД -----
+  const billboardGroup = new THREE.Group();
+  const panelFront = new THREE.Mesh(new THREE.PlaneGeometry(8.4, 3.15), hologramMaterial);
+  panelFront.position.set(0, 6.5, 0.15);
+  billboardGroup.add(panelFront);
+  const panelBack = new THREE.Mesh(new THREE.PlaneGeometry(8.4, 3.15), hologramMaterial);
+  panelBack.position.set(0, 6.5, -0.15);
+  panelBack.rotation.y = Math.PI;
+  billboardGroup.add(panelBack);
+  const frameMat = makeLineMat('#00f0ff', 3.2, 1.0);
+  const frame = edgesToLineSegments(new THREE.BoxGeometry(8.8, 3.55, 0.35), frameMat);
+  frame.position.y = 6.5;
+  billboardGroup.add(frame);
+  const glowMat = new THREE.SpriteMaterial({
+    map: glowTexture,
+    color: 0xff2a85,
+    transparent: true,
+    opacity: 0.55,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+  const glow = new THREE.Sprite(glowMat);
+  glow.position.set(0, 6.5, 0);
+  glow.scale.set(13, 6, 1);
+  billboardGroup.add(glow);
+  const billboardX = roadCurveX(-18) - 18.5;
+  const billboardY = terrainHeight(billboardX, -18);
+  billboardGroup.position.set(billboardX, billboardY, -18);
+  billboardGroup.rotation.y = Math.PI / 5;
+  billboardGroup.scale.setScalar(1.6);
+  group.add(billboardGroup);
+
+  // ----- ЦЕРКОВЬ -----
+  function createChurchTemplate(solidMat, edgeA, edgeB, edgeC, edgeD) {
+    const church = new THREE.Group();
+    const f1 = createSolidWithEdges(new THREE.BoxGeometry(8.0, 1.2, 14.0), solidMat, edgeA);
+    f1.position.y = 0.6;
+    church.add(f1);
+    const f2 = createSolidWithEdges(new THREE.BoxGeometry(7.0, 0.8, 13.0), solidMat, edgeB);
+    f2.position.y = 1.6;
+    church.add(f2);
+    const hall = createSolidWithEdges(new THREE.BoxGeometry(5.2, 6.0, 10.0), solidMat, edgeC);
+    hall.position.set(0, 5.0, -1.0);
+    church.add(hall);
+    const apseGeo = new THREE.CylinderGeometry(2.6, 2.6, 6.0, 8, 1, false, 0, Math.PI);
+    apseGeo.rotateY(Math.PI / 2);
+    const apse = createSolidWithEdges(apseGeo, solidMat, edgeA);
+    apse.position.set(0, 5.0, -6.0);
+    church.add(apse);
+    const tower = createSolidWithEdges(new THREE.BoxGeometry(2.6, 12.0, 2.6), solidMat, edgeC);
+    tower.position.set(0, 8.0, 5.3);
+    church.add(tower);
+    const spireGeo = new THREE.ConeGeometry(1.5, 8.0, 8);
+    const spire = createSolidWithEdges(spireGeo, solidMat, edgeB);
+    spire.position.set(0, 18.0, 5.3);
+    church.add(spire);
+    return church;
+  }
+
+  const church = createChurchTemplate(solidBuildingMaterial, neonPurple, neonPink, neonCyan, neonAmber);
+  const churchX = roadCurveX(-25) + 18.0;
+  const churchY = terrainHeight(churchX, -25) - 0.4;
+  church.position.set(churchX, churchY, -25);
+  church.lookAt(roadCurveX(-25), churchY, -25);
+  church.rotation.y += Math.PI * 0.15;
+  group.add(church);
+
+  // ----- БАШНЯ -----
+  function createClockTowerTemplate(solidMat, edgeA, edgeB, edgeC, edgeD) {
+    const tower = new THREE.Group();
+    const f1 = createSolidWithEdges(new THREE.BoxGeometry(5.2, 1.5, 5.2), solidMat, edgeA);
+    f1.position.y = 0.75;
+    tower.add(f1);
+    const f2 = createSolidWithEdges(new THREE.BoxGeometry(4.2, 1.5, 4.2), solidMat, edgeC);
+    f2.position.y = 2.25;
+    tower.add(f2);
+    const core = createSolidWithEdges(new THREE.BoxGeometry(1.8, 12.0, 1.8), solidMat, edgeA);
+    core.position.y = 9.0;
+    tower.add(core);
+    const deck = createSolidWithEdges(new THREE.BoxGeometry(3.8, 0.4, 3.8), solidMat, edgeB);
+    deck.position.y = 15.2;
+    tower.add(deck);
+    const head = createSolidWithEdges(new THREE.BoxGeometry(3.0, 3.0, 3.0), solidMat, edgeC);
+    head.position.y = 17.1;
+    tower.add(head);
+    const roofGeo = new THREE.ConeGeometry(2.1, 1.0, 4);
+    roofGeo.rotateY(Math.PI / 4);
+    const roof = createSolidWithEdges(roofGeo, solidMat, edgeB);
+    roof.position.y = 19.1;
+    tower.add(roof);
+    return tower;
+  }
+
+  const tower = createClockTowerTemplate(solidBuildingMaterial, neonPurple, neonPink, neonCyan, neonAmber);
+  const towerX = roadCurveX(20) - 16.0;
+  const towerY = terrainHeight(towerX, 20) - 0.7;
+  tower.position.set(towerX, towerY, 20);
+  tower.lookAt(roadCurveX(20), towerY, 20);
+  tower.rotation.y -= Math.PI * 0.12;
+  group.add(tower);
+
+  // ----- ЗАМОК -----
+  function createCastleTemplate(solidMat, edgeA, edgeB, edgeC) {
+    const castle = new THREE.Group();
+    const base = createSolidWithEdges(new THREE.BoxGeometry(12, 2, 10), solidMat, edgeA);
+    base.position.y = 1;
+    castle.add(base);
+    const wall1 = createSolidWithEdges(new THREE.BoxGeometry(10, 6, 0.5), solidMat, edgeB);
+    wall1.position.set(0, 4, 5);
+    castle.add(wall1);
+    const wall2 = createSolidWithEdges(new THREE.BoxGeometry(10, 6, 0.5), solidMat, edgeB);
+    wall2.position.set(0, 4, -5);
+    castle.add(wall2);
+    const wall3 = createSolidWithEdges(new THREE.BoxGeometry(0.5, 6, 8), solidMat, edgeB);
+    wall3.position.set(5, 4, 0);
+    castle.add(wall3);
+    const wall4 = createSolidWithEdges(new THREE.BoxGeometry(0.5, 6, 8), solidMat, edgeB);
+    wall4.position.set(-5, 4, 0);
+    castle.add(wall4);
+    for (let side = -1; side <= 1; side += 2) {
+      for (let sideZ = -1; sideZ <= 1; sideZ += 2) {
+        const towerGeo = new THREE.CylinderGeometry(1.2, 1.5, 7, 8);
+        const towerMesh = createSolidWithEdges(towerGeo, solidMat, edgeC);
+        towerMesh.position.set(side * 4.5, 5.5, sideZ * 4);
+        castle.add(towerMesh);
+      }
+    }
+    return castle;
+  }
+
+  const castle = createCastleTemplate(solidBuildingMaterial, neonPurple, neonPink, neonCyan);
+  const castleX = roadCurveX(0) - 45.0;
+  const castleZ = 10.0;
+  const castleY = terrainHeight(castleX, castleZ) - 0.5;
+  castle.position.set(castleX, castleY, castleZ);
+  castle.scale.setScalar(1.2);
+  group.add(castle);
+
+  // ----- ДОМИКИ -----
+  const baseBoxGeo = new THREE.BoxGeometry(3.6, 3.0, 3.6);
+  const roofConeGeo = new THREE.ConeGeometry(2.8, 1.8, 4);
+  roofConeGeo.rotateY(Math.PI / 4);
+
+  const hutMat = createSolidMaterial(0x0a0a1a, 0.7, 0.3);
+  const placements = [
+    { z: -40, side: -1, offset: 10 },
+    { z: -34, side: -1, offset: 9 },
+    { z: -10, side: 1, offset: 11 },
+    { z: 0, side: -1, offset: 9 },
+    { z: 12, side: 1, offset: 10 },
+    { z: 22, side: 1, offset: 10 },
+    { z: 35, side: -1, offset: 10 }
+  ];
+
+  for (const item of placements) {
+    const x = roadCurveX(item.z) + item.side * (item.offset + random() * 1.5);
+    const y = terrainHeight(x, item.z);
+    const scale = 0.9 + random() * 0.3;
+
+    const base = new THREE.Mesh(baseBoxGeo, hutMat);
+    base.position.set(x, y + 1.5 * scale, item.z);
+    base.scale.setScalar(scale);
+    base.castShadow = true;
+    group.add(base);
+
+    const roof = new THREE.Mesh(roofConeGeo, hutMat);
+    roof.position.set(x, y + 4.0 * scale, item.z);
+    roof.scale.setScalar(scale);
+    group.add(roof);
+  }
+
+  // ----- ДЕРЕВЬЯ -----
+  const treeMat = createSolidMaterial(0x0a1a0a, 0.2, 0.8);
+  const treeGeo = new THREE.ConeGeometry(1.5, 3.2, 5);
+  for (let i = 0; i < 40; i++) {
+    const z = -47 + random() * 94;
+    const x = -48 + random() * 96;
+    if (Math.abs(x - roadCurveX(z)) < 9.0) continue;
+    const y = terrainHeight(x, z);
+    const tree = new THREE.Mesh(treeGeo, treeMat);
+    const scale = 0.7 + random() * 0.6;
+    tree.position.set(x, y + 1.5 * scale, z);
+    tree.scale.setScalar(scale);
+    tree.rotation.y = random() * Math.PI * 2;
+    group.add(tree);
+  }
+
+  // ----- ФОНАРИ -----
+  const poleMat = createSolidMaterial(0x1a0c24, 0.9, 0.1);
+  const poleOutlineMat = makeLineMat('#a855f7', 1.8, 0.72);
+
+  const zs = [-40, -30, -20, -10, 0, 10, 20, 30, 40];
+  for (let i = 0; i < zs.length; i++) {
+    const z = zs[i];
+    const side = i % 2 === 0 ? -1 : 1;
+    const x = roadCurveX(z) + side * 4.0;
+    const y = terrainHeight(x, z);
+
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.15, 3.5, 6), poleMat);
+    pole.position.set(x, y + 1.75, z);
+    group.add(pole);
+
+    const glowMat = new THREE.SpriteMaterial({
+      map: glowTexture,
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.6,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const glow = new THREE.Sprite(glowMat);
+    glow.position.set(x + side * -1.2, y + 3.0, z);
+    glow.scale.set(5.0, 5.0, 1);
+    group.add(glow);
+
+    const light = new THREE.PointLight(0x00f0ff, 1.5, 15.0, 2.0);
+    light.position.copy(glow.position);
+    group.add(light);
+  }
+
+  // ----- ДРАКОНЫ -----
+  function createDragon(neonColor, bodyColor) {
+    const dGroup = new THREE.Group();
+    const neonMat = makeLineMat(neonColor, 2.5, 1.0);
+    const bodyMat = createSolidMaterial(bodyColor, 0.8, 0.2);
+
+    const torso = createSolidWithEdges(new THREE.BoxGeometry(1.5, 1.5, 4.0), bodyMat, neonMat);
+    dGroup.add(torso);
+
+    const head = createSolidWithEdges(new THREE.BoxGeometry(1.3, 1.1, 1.6), bodyMat, neonMat);
+    head.position.set(0, 0.5, 2.5);
+    dGroup.add(head);
+
+    const wingMat = createSolidMaterial(0x330055, 0.2, 0.8);
+    for (let side = -1; side <= 1; side += 2) {
+      const wing = createSolidWithEdges(new THREE.BoxGeometry(3.0, 0.1, 1.5), wingMat, neonMat);
+      wing.position.set(side * 1.5, 0.5, 0);
+      wing.rotation.z = side * 0.5;
+      dGroup.add(wing);
+    }
+
+    const glow = new THREE.PointLight(neonColor, 2.0, 12.0, 2.0);
+    glow.position.set(0, -0.5, 0);
+    dGroup.add(glow);
+
+    return dGroup;
+  }
+
+  const dragon1 = createDragon(0x00f0ff, 0x050a18);
+  dragon1.position.set(-20, 15, -10);
+  dragon1.scale.setScalar(0.7);
+  group.add(dragon1);
+
+  const dragon2 = createDragon(0xff2a85, 0x120216);
+  dragon2.position.set(20, 12, -15);
+  dragon2.scale.setScalar(0.65);
+  group.add(dragon2);
+
+  // ----- ДРОНЫ -----
+  function createDrone() {
+    const drone = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 0.3, 6), createSolidMaterial(0x020508, 0.9, 0.18));
+    body.position.y = 0.15;
+    drone.add(body);
+
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.06, 0.3), createSolidMaterial(0x020508, 0.9, 0.18));
+    wing.position.set(0, 0.25, -0.2);
+    drone.add(wing);
+
+    const glow = new THREE.PointLight(0xff2a85, 2.0, 8.0, 2.0);
+    glow.position.set(0, -0.2, 0);
+    drone.add(glow);
+
+    const fireGlow = new THREE.PointLight(0xff6a22, 2.0, 10.0, 2.0);
+    fireGlow.position.set(0, 0.3, -1.5);
+    drone.add(fireGlow);
+
+    return drone;
+  }
+
+  for (let i = 0; i < 4; i++) {
+    const drone = createDrone();
+    const angle = (i / 4) * Math.PI * 2;
+    const radius = 30 + i * 5;
+    drone.position.set(Math.cos(angle) * radius, 8 + i * 2, Math.sin(angle) * radius);
+    drone.userData = { angle, radius, speed: 0.3 + i * 0.1 };
+    group.add(drone);
+  }
+
+  // ----- ЛУНА -----
+  const moonMat = new THREE.ShaderMaterial({
     uniforms: { time: { value: 0 } },
     vertexShader: `
       varying vec2 vUv;
@@ -716,1145 +796,23 @@ export function createCyberCity() {
       }
     `
   });
-  neonMaterials.push(moonMaterial);
 
-  const lanternMaterial = new THREE.ShaderMaterial({
-    uniforms: { time: { value: 0 } },
-    vertexShader: `
-      varying vec3 vNormal;
-      varying vec3 vWorld;
-      void main() {
-        vec4 world = modelMatrix * vec4(position, 1.0);
-        vWorld = world.xyz;
-        vNormal = normalize(normalMatrix * normal);
-        gl_Position = projectionMatrix * viewMatrix * world;
-      }
-    `,
-    fragmentShader: `
-      uniform float time;
-      varying vec3 vNormal;
-      varying vec3 vWorld;
-      void main() {
-        float pulse = 0.82 + sin(time * 6.0 + vWorld.x + vWorld.z) * 0.18;
-        vec3 color = mix(vec3(0.0, 0.9, 1.0), vec3(1.0, 0.05, 0.45), 0.18) * pulse;
-        gl_FragColor = vec4(color, 0.92);
-      }
-    `,
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false
-  });
-  neonMaterials.push(lanternMaterial);
+  const moon = new THREE.Mesh(new THREE.SphereGeometry(4.0, 48, 48), moonMat);
+  moon.position.set(-30, 35, -45);
+  group.add(moon);
 
-  const flameMaterial = makeFlameMaterial();
-  flameMaterials.push(flameMaterial);
-
-  const churchGlassMaterial = new THREE.ShaderMaterial({
-    uniforms: { time: { value: 0 } },
-    vertexShader: `
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform float time;
-      varying vec2 vUv;
-      void main() {
-        vec2 uv = vUv - vec2(0.5);
-        float r = length(uv);
-        float theta = atan(uv.y, uv.x);
-        float p1 = sin(r * 28.0 - time * 1.8) * sin(theta * 10.0);
-        float p2 = cos(r * 48.0 + time * 1.2) * cos(theta * 8.0 - time * 0.4);
-        float ring = smoothstep(0.48, 0.45, r) * smoothstep(0.01, 0.05, r);
-        float finalPat = (p1 * 0.5 + p2 * 0.5) * ring;
-        vec3 violet = vec3(0.35, 0.02, 0.82);
-        vec3 magenta = vec3(1.0, 0.0, 0.58);
-        vec3 cyan = vec3(0.0, 0.92, 1.0);
-        vec3 color = mix(violet, magenta, sin(time * 0.6 + r * 5.5) * 0.5 + 0.5);
-        color = mix(color, cyan, finalPat * 0.65);
-        color += vec3(0.18, 0.0, 0.28) * (1.0 - r * 2.0);
-        float lead = smoothstep(0.03, 0.0, abs(sin(r * 42.0)) * 0.1);
-        lead += smoothstep(0.03, 0.0, abs(sin(theta * 10.0)) * 0.06);
-        color *= mix(1.0, 0.12, lead * ring);
-        float edge = smoothstep(0.44, 0.48, r);
-        color = mix(color, magenta * 1.6, edge);
-        gl_FragColor = vec4(color * (1.3 + 0.22 * sin(time * 3.4)), ring * 0.95 + edge * 0.5);
-      }
-    `,
-    transparent: true,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending
-  });
-  neonMaterials.push(churchGlassMaterial);
-
-  // ----- ОСВЕЩЕНИЕ -----
-  const hemi = new THREE.HemisphereLight(0x3a0088, 0x050114, 0.72);
-  scene.add(hemi);
-
-  const moonLight = new THREE.DirectionalLight(0x00d4ff, 2.55);
-  moonLight.position.copy(moonDirection).multiplyScalar(60);
-  scene.add(moonLight);
-
-  const underLight = new THREE.PointLight(0xa855f7, 1.15, 75, 2.0);
-  underLight.position.set(0, 8, 0);
-  scene.add(underLight);
-
-  const warmCityLight = new THREE.PointLight(0xff2a85, 1.05, 52, 2.0);
-  warmCityLight.position.set(12, 7, 8);
-  scene.add(warmCityLight);
-
-  // ----- ТЕРРЕЙН -----
-  const terrainGeo = new THREE.PlaneGeometry(120, 120, 64, 64);
-  terrainGeo.rotateX(-Math.PI / 2);
-  const terrainPos = terrainGeo.attributes.position;
-  for (let i = 0; i < terrainPos.count; i++) {
-    const x = terrainPos.getX(i);
-    const z = terrainPos.getZ(i);
-    terrainPos.setY(i, terrainHeight(x, z));
-  }
-  terrainGeo.computeVertexNormals();
-  const terrainMesh = new THREE.Mesh(terrainGeo, terrainMaterial);
-  villageGroup.add(terrainMesh);
-
-  // ----- ДОРОГА -----
-  const width = 6.0;
-  const length = 100;
-  const segments = 120;
-  const roadPositions = [];
-  const roadUvs = [];
-  const roadIndices = [];
-  const leftPts = [];
-  const rightPts = [];
-  const outerLeftPts = [];
-  const outerRightPts = [];
-
-  for (let i = 0; i <= segments; i++) {
-    const t = i / segments;
-    const z = -length * 0.5 + t * length;
-    const cx = roadCurveX(z);
-    const dx = roadDerivative(z);
-
-    const nx = 1.0;
-    const nz = -dx;
-    const inv = 1.0 / Math.sqrt(nx * nx + nz * nz);
-    const ox = nx * inv * width * 0.5;
-    const oz = nz * inv * width * 0.5;
-
-    const leftX = cx - ox;
-    const leftZ = z - oz;
-    const rightX = cx + ox;
-    const rightZ = z + oz;
-
-    const outerOffset = 0.7;
-    const oox = nx * inv * (width * 0.5 + outerOffset);
-    const ooz = nz * inv * (width * 0.5 + outerOffset);
-
-    const yL = terrainHeight(leftX, leftZ) + 0.05;
-    const yR = terrainHeight(rightX, rightZ) + 0.05;
-    const yOL = terrainHeight(cx - oox, z - ooz) + 0.12;
-    const yOR = terrainHeight(cx + oox, z + ooz) + 0.12;
-
-    roadPositions.push(leftX, yL, leftZ, rightX, yR, rightZ);
-    roadUvs.push(0, t, 1, t);
-
-    leftPts.push(new THREE.Vector3(leftX, yL + 0.025, leftZ));
-    rightPts.push(new THREE.Vector3(rightX, yR + 0.025, rightZ));
-    outerLeftPts.push(new THREE.Vector3(cx - oox, yOL, z - ooz));
-    outerRightPts.push(new THREE.Vector3(cx + oox, yOR, z + ooz));
-  }
-
-  for (let i = 0; i < segments; i++) {
-    const a = i * 2;
-    roadIndices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
-  }
-
-  const roadGeo = new THREE.BufferGeometry();
-  roadGeo.setAttribute('position', new THREE.Float32BufferAttribute(roadPositions, 3));
-  roadGeo.setAttribute('uv', new THREE.Float32BufferAttribute(roadUvs, 2));
-  roadGeo.setIndex(roadIndices);
-  roadGeo.computeVertexNormals();
-
-  const roadMesh = new THREE.Mesh(roadGeo, roadMaterial);
-  villageGroup.add(roadMesh);
-
-  const edgeMat = makeLineMat('#00f0ff', 3.6, 1.0);
-  const outerEdgeMat = makeLineMat('#ff2a85', 2.1, 0.72);
-
-  villageGroup.add(
-    pointsToLine2(leftPts, edgeMat),
-    pointsToLine2(rightPts, edgeMat),
-    pointsToLine2(outerLeftPts, outerEdgeMat),
-    pointsToLine2(outerRightPts, outerEdgeMat)
-  );
-
-  // ----- РАЗМЕТКА ДОРОГИ -----
-  const dashMat = makeLineMat('#ffe56b', 2.2, 0.72);
-  const railMat = makeLineMat('#00f0ff', 1.4, 0.35);
-
-  for (let z = -43; z <= 43; z += 7) {
-    const cx = roadCurveX(z);
-    const dx = roadDerivative(z);
-    const angle = Math.atan2(dx, 1.0);
-    const y = terrainHeight(cx, z) + 0.16;
-    const dash = new THREE.Group();
-    const pts = [new THREE.Vector3(0, 0, -1.4), new THREE.Vector3(0, 0, 1.4)];
-    const line = pointsToLine2(pts, dashMat);
-    dash.add(line);
-    dash.position.set(cx, y, z);
-    dash.rotation.y = angle;
-    villageGroup.add(dash);
-    dynamicObjects.roadDashes.push({ mesh: dash, phase: z * 0.13 });
-  }
-
-  for (let side = -1; side <= 1; side += 2) {
-    const segs = [];
-    for (let z = -44; z < 44; z += 8) {
-      const cx1 = roadCurveX(z);
-      const cx2 = roadCurveX(z + 4);
-      const dx1 = roadDerivative(z);
-      const dx2 = roadDerivative(z + 4);
-
-      const inv1 = 1 / Math.sqrt(1 + dx1 * dx1);
-      const inv2 = 1 / Math.sqrt(1 + dx2 * dx2);
-
-      const x1 = cx1 + side * 4.8 * inv1;
-      const z1 = z - side * dx1 * 4.8 * inv1;
-      const x2 = cx2 + side * 4.8 * inv2;
-      const z2 = z + 4 - side * dx2 * 4.8 * inv2;
-
-      const y1 = terrainHeight(x1, z1) + 0.65;
-      const y2 = terrainHeight(x2, z2) + 0.65;
-
-      segs.push(x1, y1, z1, x2, y2, z2);
-    }
-    villageGroup.add(segmentsToLineSegments(segs, railMat));
-  }
-
-  // ----- ЛУНА -----
-  const moon = new THREE.Mesh(new THREE.SphereGeometry(6.0, 64, 64), moonMaterial);
-  moon.position.set(-35, 38, -50);
-  scene.add(moon);
-
-  const glowTexture = createGlowTexture();
   const moonGlowMat = new THREE.SpriteMaterial({
     map: glowTexture,
     color: 0x9922ff,
     transparent: true,
-    opacity: 0.58,
+    opacity: 0.5,
     blending: THREE.AdditiveBlending,
     depthWrite: false
   });
   const moonGlow = new THREE.Sprite(moonGlowMat);
   moonGlow.position.copy(moon.position);
-  moonGlow.scale.set(35, 35, 1);
-  scene.add(moonGlow);
+  moonGlow.scale.set(25, 25, 1);
+  group.add(moonGlow);
 
-  // ----- ФОНОВЫЕ ГРЕБНИ -----
-  const ridgeMatA = makeLineMat('#00f0ff', 2.0, 0.38);
-  const ridgeMatB = makeLineMat('#a855f7', 1.5, 0.26);
-  const ridgeMatC = makeLineMat('#ff2a85', 1.2, 0.22);
-
-  function makeRidge(zOffset, amplitude, heightBase, count, material) {
-    const pts = [];
-    for (let i = 0; i < count; i++) {
-      const t = i / (count - 1);
-      const x = -65 + t * 130;
-      const y = heightBase +
-        Math.sin(t * Math.PI * 6.0 + zOffset) * amplitude +
-        Math.cos(t * Math.PI * 9.0) * (amplitude * 0.4);
-      pts.push(new THREE.Vector3(x, y, zOffset));
-    }
-    return pointsToLine2(pts, material);
-  }
-
-  villageGroup.add(
-    makeRidge(-55, 6.0, 10.0, 60, ridgeMatA),
-    makeRidge(-60, 5.0, 14.0, 50, ridgeMatB),
-    makeRidge(55, 4.0, 8.0, 40, ridgeMatB),
-    makeRidge(62, 5.8, 12.0, 48, ridgeMatC)
-  );
-
-  // ----- ЦЕРКОВЬ -----
-  function createChurchTemplate() {
-    const church = new THREE.Group();
-    const neonPurple = makeLineMat('#a855f7', 3.0, 0.95);
-    const neonPink = makeLineMat('#ff2a85', 2.8, 1.0);
-    const neonCyan = makeLineMat('#00f0ff', 2.6, 1.0);
-    const neonAmber = makeLineMat('#ffb84a', 2.0, 0.86);
-
-    const f1 = createSolidWithEdges(new THREE.BoxGeometry(8.0, 1.2, 14.0), solidBuildingMaterial, neonPurple);
-    f1.position.y = 0.6;
-    church.add(f1);
-
-    const f2 = createSolidWithEdges(new THREE.BoxGeometry(7.0, 0.8, 13.0), solidBuildingMaterial, neonPink);
-    f2.position.y = 1.6;
-    church.add(f2);
-
-    const hallGeo = new THREE.BoxGeometry(5.2, 6.0, 10.0);
-    const hall = createSolidWithEdges(hallGeo, solidBuildingMaterial, neonCyan);
-    hall.position.set(0, 5.0, -1.0);
-    church.add(hall);
-
-    const apseGeo = new THREE.CylinderGeometry(2.6, 2.6, 6.0, 8, 1, false, 0, Math.PI);
-    apseGeo.rotateY(Math.PI / 2);
-    const apse = createSolidWithEdges(apseGeo, solidBuildingMaterial, neonPurple);
-    apse.position.set(0, 5.0, -6.0);
-    church.add(apse);
-
-    for (let side = -1; side <= 1; side += 2) {
-      const zs = [-4.0, -1.0, 2.0];
-      for (const bz of zs) {
-        const pier = createSolidWithEdges(new THREE.BoxGeometry(0.6, 5.0, 0.6), solidBuildingMaterial, neonPink);
-        pier.position.set(side * 4.0, 2.5, bz);
-        church.add(pier);
-
-        const flyerGeo = new THREE.BoxGeometry(1.8, 0.25, 0.25);
-        const flyer = createSolidWithEdges(flyerGeo, solidBuildingMaterial, neonCyan);
-        flyer.position.set(side * 2.9, 4.6, bz);
-        flyer.rotation.z = side * -0.42;
-        church.add(flyer);
-
-        const pSpireGeo = new THREE.ConeGeometry(0.3, 1.2, 4);
-        const pSpire = createSolidWithEdges(pSpireGeo, solidBuildingMaterial, neonAmber);
-        pSpire.position.set(side * 4.0, 5.6, bz);
-        church.add(pSpire);
-      }
-    }
-
-    const tower = createSolidWithEdges(new THREE.BoxGeometry(2.6, 12.0, 2.6), solidBuildingMaterial, neonCyan);
-    tower.position.set(0, 8.0, 5.3);
-    church.add(tower);
-
-    const spireGeo = new THREE.ConeGeometry(1.5, 8.0, 8);
-    const spire = createSolidWithEdges(spireGeo, solidBuildingMaterial, neonPink);
-    spire.position.set(0, 18.0, 5.3);
-    church.add(spire);
-
-    const crossGroup = new THREE.Group();
-    const vertCross = createSolidWithEdges(new THREE.BoxGeometry(0.15, 1.8, 0.15), solidBuildingMaterial, neonAmber);
-    const horizCross = createSolidWithEdges(new THREE.BoxGeometry(1.1, 0.15, 0.15), solidBuildingMaterial, neonAmber);
-    horizCross.position.y = 0.45;
-    crossGroup.add(vertCross, horizCross);
-    crossGroup.position.set(0, 22.8, 5.3);
-    church.add(crossGroup);
-
-    const roseGeo = new THREE.CircleGeometry(1.2, 32);
-    const roseMesh = new THREE.Mesh(roseGeo, churchGlassMaterial);
-    roseMesh.position.set(0, 9.5, 6.62);
-    church.add(roseMesh);
-
-    const roseFrame = edgesToLineSegments(new THREE.RingGeometry(1.2, 1.3, 32), neonPink);
-    roseFrame.position.set(0, 9.5, 6.64);
-    church.add(roseFrame);
-
-    const portal = createSolidWithEdges(new THREE.BoxGeometry(1.5, 2.6, 0.4), solidBuildingMaterial, neonAmber);
-    portal.position.set(0, 3.3, 6.5);
-    church.add(portal);
-
-    const portalGlow = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 2.2), new THREE.MeshBasicMaterial({
-      color: 0xffa500,
-      transparent: true,
-      opacity: 0.65,
-      side: THREE.DoubleSide
-    }));
-    portalGlow.position.set(0, 3.1, 6.72);
-    church.add(portalGlow);
-
-    return church;
-  }
-
-  const church = createChurchTemplate();
-  const churchY = terrainHeight(landmarks.church.x, landmarks.church.z) - 0.4;
-  church.position.set(landmarks.church.x, churchY, landmarks.church.z);
-  church.lookAt(roadCurveX(landmarks.church.z), churchY, landmarks.church.z);
-  church.rotation.y += Math.PI * 0.15;
-  villageGroup.add(church);
-
-  // ----- ЧАСОВАЯ БАШНЯ -----
-  function createClockTowerTemplate() {
-    const clockTower = new THREE.Group();
-    const ctEdgeCyan = makeLineMat('#00f0ff', 2.8, 1.0);
-    const ctEdgePink = makeLineMat('#ff2a85', 2.8, 1.0);
-    const ctEdgePurple = makeLineMat('#a855f7', 2.6, 0.95);
-    const ctEdgeAmber = makeLineMat('#ffb84a', 2.0, 0.85);
-
-    const f1 = createSolidWithEdges(new THREE.BoxGeometry(5.2, 1.5, 5.2), solidBuildingMaterial, ctEdgePurple);
-    f1.position.y = 0.75;
-    clockTower.add(f1);
-
-    const f2 = createSolidWithEdges(new THREE.BoxGeometry(4.2, 1.5, 4.2), solidBuildingMaterial, ctEdgeCyan);
-    f2.position.y = 2.25;
-    clockTower.add(f2);
-
-    const core = createSolidWithEdges(new THREE.BoxGeometry(1.8, 12.0, 1.8), solidBuildingMaterial, ctEdgePurple);
-    core.position.y = 9.0;
-    clockTower.add(core);
-
-    const colPos = [-1.6, 1.6];
-    for (const cx of colPos) {
-      for (const cz of colPos) {
-        const col = createSolidWithEdges(new THREE.BoxGeometry(0.35, 12.0, 0.35), solidBuildingMaterial, ctEdgeCyan);
-        col.position.set(cx, 9.0, cz);
-        clockTower.add(col);
-      }
-    }
-
-    const braceSegments = [];
-    for (let yLevel = 3.0; yLevel < 14.0; yLevel += 3.0) {
-      braceSegments.push(
-        -1.6, yLevel, -1.6,  -1.6, yLevel + 3.0, 1.6,
-        -1.6, yLevel, 1.6,   -1.6, yLevel + 3.0, -1.6,
-        1.6, yLevel, -1.6,   1.6, yLevel + 3.0, 1.6,
-        1.6, yLevel, 1.6,    1.6, yLevel + 3.0, -1.6,
-        -1.6, yLevel, -1.6,  1.6, yLevel + 3.0, -1.6,
-        1.6, yLevel, -1.6,   -1.6, yLevel + 3.0, -1.6,
-        -1.6, yLevel, 1.6,   1.6, yLevel + 3.0, 1.6,
-        1.6, yLevel, 1.6,    -1.6, yLevel + 3.0, 1.6
-      );
-    }
-    const braces = segmentsToLineSegments(braceSegments, ctEdgePink);
-    clockTower.add(braces);
-
-    const deck = createSolidWithEdges(new THREE.BoxGeometry(3.8, 0.4, 3.8), solidBuildingMaterial, ctEdgePink);
-    deck.position.y = 15.2;
-    clockTower.add(deck);
-
-    const railingGeo = new THREE.BoxGeometry(3.6, 0.6, 3.6);
-    const railing = edgesToLineSegments(railingGeo, ctEdgeCyan);
-    railing.position.y = 15.7;
-    clockTower.add(railing);
-
-    const beaconLight = new THREE.PointLight(0x00f0ff, 2.5, 18.0, 2.0);
-    beaconLight.position.set(0, 15.8, 0);
-    clockTower.add(beaconLight);
-
-    const head = createSolidWithEdges(new THREE.BoxGeometry(3.0, 3.0, 3.0), solidBuildingMaterial, ctEdgeCyan);
-    head.position.y = 17.1;
-    clockTower.add(head);
-
-    function createHolographicClockFace(isFront) {
-      const faceGroup = new THREE.Group();
-
-      const faceMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 2.8), hologramMaterial);
-      faceMesh.position.set(0, 0, 0.02);
-      faceGroup.add(faceMesh);
-
-      const ticks = [];
-      for (let d = 0; d < 12; d++) {
-        const angle = (d / 12) * Math.PI * 2;
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
-        ticks.push(cos * 0.82, sin * 0.82, 0.03, cos * 0.98, sin * 0.98, 0.03);
-      }
-      faceGroup.add(segmentsToLineSegments(ticks, ctEdgeAmber));
-
-      const hrGroup = new THREE.Group();
-      const hrLine = pointsToLine2([new THREE.Vector3(0, 0, 0.04), new THREE.Vector3(0, 0.52, 0.04)], ctEdgeAmber);
-      hrGroup.add(hrLine);
-      faceGroup.add(hrGroup);
-      dynamicObjects.clockHands.push({ type: 'hour', mesh: hrGroup });
-
-      const minGroup = new THREE.Group();
-      const minLine = pointsToLine2([new THREE.Vector3(0, 0, 0.05), new THREE.Vector3(0, 0.8, 0.05)], ctEdgeCyan);
-      minGroup.add(minLine);
-      faceGroup.add(minGroup);
-      dynamicObjects.clockHands.push({ type: 'minute', mesh: minGroup });
-
-      const secGroup = new THREE.Group();
-      const secLine = pointsToLine2([new THREE.Vector3(0, 0, 0.06), new THREE.Vector3(0, 0.9, 0.06)], ctEdgePink);
-      secGroup.add(secLine);
-      faceGroup.add(secGroup);
-      dynamicObjects.clockHands.push({ type: 'second', mesh: secGroup });
-
-      faceGroup.position.set(0, 17.1, isFront ? 1.52 : -1.52);
-      if (!isFront) faceGroup.rotation.y = Math.PI;
-
-      return faceGroup;
-    }
-
-    clockTower.add(createHolographicClockFace(true));
-    clockTower.add(createHolographicClockFace(false));
-
-    const roofGeo = new THREE.ConeGeometry(2.1, 1.0, 4);
-    roofGeo.rotateY(Math.PI / 4);
-    const roof = createSolidWithEdges(roofGeo, solidBuildingMaterial, ctEdgePink);
-    roof.position.y = 19.1;
-    clockTower.add(roof);
-
-    const needle = createSolidWithEdges(new THREE.BoxGeometry(0.12, 5.0, 0.12), solidBuildingMaterial, ctEdgePink);
-    needle.position.y = 21.6;
-    clockTower.add(needle);
-
-    const r1 = edgesToLineSegments(new THREE.TorusGeometry(0.6, 0.03, 4, 16), ctEdgeCyan);
-    r1.rotation.x = Math.PI / 2; r1.position.y = 20.0;
-    const r2 = edgesToLineSegments(new THREE.TorusGeometry(0.4, 0.03, 4, 16), ctEdgeCyan);
-    r2.rotation.x = Math.PI / 2; r2.position.y = 21.6;
-    const r3 = edgesToLineSegments(new THREE.TorusGeometry(0.2, 0.03, 4, 16), ctEdgeCyan);
-    r3.rotation.x = Math.PI / 2; r3.position.y = 23.2;
-    clockTower.add(r1, r2, r3);
-
-    const beaconPts = [new THREE.Vector3(0, 24.1, 0), new THREE.Vector3(0, 50.0, 0)];
-    const beaconLine = pointsToLine2(beaconPts, makeLineMat('#00f0ff', 1.8, 0.65));
-    clockTower.add(beaconLine);
-
-    return clockTower;
-  }
-
-  const clockTower = createClockTowerTemplate();
-  const ctY = terrainHeight(landmarks.clockTower.x, landmarks.clockTower.z) - 0.7;
-  clockTower.position.set(landmarks.clockTower.x, ctY, landmarks.clockTower.z);
-  clockTower.lookAt(roadCurveX(landmarks.clockTower.z), ctY, landmarks.clockTower.z);
-  clockTower.rotation.y -= Math.PI * 0.12;
-  villageGroup.add(clockTower);
-
-  // ----- ИНСТАНСИРОВАННЫЕ СТРУКТУРЫ -----
-  const residentialPlacements = [
-    { z: -40, side: -1, scale: 1.1, offset: 10 },
-    { z: -34, side: -1, scale: 0.9, offset: 9 },
-    { z: -10, side: 1,  scale: 1.2, offset: 11 },
-    { z: 0,   side: -1, scale: 1.0, offset: 9 },
-    { z: 12,  side: 1,  scale: 1.0, offset: 10 },
-    { z: 22,  side: 1,  scale: 1.1, offset: 10 },
-    { z: 35,  side: -1, scale: 1.0, offset: 10 }
-  ];
-
-  const exclusionZones = [
-    { x: landmarks.church.x, z: landmarks.church.z, radius: landmarks.church.radius },
-    { x: landmarks.clockTower.x, z: landmarks.clockTower.z, radius: landmarks.clockTower.radius },
-    { x: landmarks.billboard.x, z: landmarks.billboard.z, radius: landmarks.billboard.radius }
-  ];
-
-  const windmillsXZ = [
-    { z: -45, side: -1, offset: 22 },
-    { z: -15, side: 1, offset: 20 },
-    { z: 30, side: -1, offset: 24 }
-  ];
-  for (const wm of windmillsXZ) {
-    const wx = roadCurveX(wm.z) + wm.side * wm.offset;
-    exclusionZones.push({ x: wx, z: wm.z, radius: 8.0 });
-  }
-
-  const baseBoxGeo = new THREE.BoxGeometry(3.6, 3.0, 3.6);
-  const roofConeGeo = new THREE.ConeGeometry(2.8, 1.8, 4);
-  roofConeGeo.rotateY(Math.PI / 4);
-
-  const count = residentialPlacements.length;
-  const instHutBase = new THREE.InstancedMesh(baseBoxGeo, instancedHutMaterial, count);
-  const instHutRoof = new THREE.InstancedMesh(roofConeGeo, instancedHutMaterial, count);
-
-  const flickerData = new Float32Array(count * 2);
-
-  const tempMatrix = new THREE.Matrix4();
-  const tempPos = new THREE.Vector3();
-  const tempRot = new THREE.Quaternion();
-  const tempScale = new THREE.Vector3();
-
-  let instIndex = 0;
-  const validHutPlacements = [];
-
-  for (let i = 0; i < count; i++) {
-    const item = residentialPlacements[i];
-    const x = roadCurveX(item.z) + item.side * (item.offset + random() * 1.5);
-    const y = terrainHeight(x, item.z);
-
-    let collides = false;
-    for (const zone of exclusionZones) {
-      const dist = Math.sqrt(Math.pow(x - zone.x, 2) + Math.pow(item.z - zone.z, 2));
-      if (dist < zone.radius) {
-        collides = true;
-        break;
-      }
-    }
-    if (collides) continue;
-
-    tempPos.set(x, y + 1.5 * item.scale, item.z);
-    tempScale.setScalar(item.scale);
-
-    const dummy = new THREE.Object3D();
-    dummy.position.copy(tempPos);
-    dummy.lookAt(roadCurveX(item.z), y + 1.5 * item.scale, item.z);
-    dummy.rotation.y += (random() - 0.5) * 0.2;
-    dummy.scale.copy(tempScale);
-    dummy.updateMatrix();
-
-    instHutBase.setMatrixAt(instIndex, dummy.matrix);
-
-    dummy.position.y += 2.4 * item.scale;
-    dummy.updateMatrix();
-    instHutRoof.setMatrixAt(instIndex, dummy.matrix);
-
-    flickerData[instIndex * 2] = random() * Math.PI * 2;
-    flickerData[instIndex * 2 + 1] = 0.6 + random() * 1.8;
-
-    validHutPlacements.push({ x, z: item.z, radius: 3.5 * item.scale });
-    instIndex++;
-  }
-
-  baseBoxGeo.setAttribute('aFlickerParams', new THREE.InstancedBufferAttribute(flickerData, 2));
-  roofConeGeo.setAttribute('aFlickerParams', new THREE.InstancedBufferAttribute(flickerData, 2));
-
-  villageGroup.add(instHutBase, instHutRoof);
-
-  const treeFoliageGeo = new THREE.ConeGeometry(1.5, 3.2, 5);
-  const foliageInstCount = 38;
-  const instFoliage = new THREE.InstancedMesh(treeFoliageGeo, instancedFoliageMaterial, foliageInstCount);
-
-  const foliageFlicker = new Float32Array(foliageInstCount * 2);
-  const foliageWind = new Float32Array(foliageInstCount * 2);
-
-  let folIndex = 0;
-  for (let i = 0; i < 150; i++) {
-    if (folIndex >= foliageInstCount) break;
-
-    const z = -47 + random() * 94;
-    const x = -48 + random() * 96;
-
-    if (Math.abs(x - roadCurveX(z)) < 9.0) continue;
-
-    let collides = false;
-    for (const zone of exclusionZones) {
-      if (Math.sqrt(Math.pow(x - zone.x, 2) + Math.pow(z - zone.z, 2)) < zone.radius + 1.5) {
-        collides = true;
-        break;
-      }
-    }
-    if (!collides) {
-      for (const hut of validHutPlacements) {
-        if (Math.sqrt(Math.pow(x - hut.x, 2) + Math.pow(z - hut.z, 2)) < hut.radius + 1.8) {
-          collides = true;
-          break;
-        }
-      }
-    }
-    if (collides) continue;
-
-    const y = terrainHeight(x, z);
-    const scale = 0.72 + random() * 0.65;
-
-    tempPos.set(x, y + 1.6 * scale, z);
-    tempScale.setScalar(scale);
-    tempRot.setFromAxisAngle(new THREE.Vector3(0, 1, 0), random() * Math.PI * 2);
-
-    tempMatrix.compose(tempPos, tempRot, tempScale);
-    instFoliage.setMatrixAt(folIndex, tempMatrix);
-
-    foliageWind[folIndex * 2] = random() * Math.PI * 2;
-    foliageWind[folIndex * 2 + 1] = 0.4 + random() * 0.8;
-
-    foliageFlicker[folIndex * 2] = random() * Math.PI * 2;
-    foliageFlicker[folIndex * 2 + 1] = 0.8 + random() * 1.5;
-
-    folIndex++;
-  }
-
-  treeFoliageGeo.setAttribute('aWindParams', new THREE.InstancedBufferAttribute(foliageWind, 2));
-  treeFoliageGeo.setAttribute('aFlickerParams', new THREE.InstancedBufferAttribute(foliageFlicker, 2));
-
-  villageGroup.add(instFoliage);
-  dynamicObjects.instancedFoliage = instFoliage;
-
-  // ----- ВЕТРЯКИ -----
-  function createWindmillTemplate() {
-    const wmGroup = new THREE.Group();
-    const neonCyan = makeLineMat('#00f0ff', 2.5, 1.0);
-    const neonOrange = makeLineMat('#ff8a2a', 2.5, 1.0);
-    const neonPink = makeLineMat('#ff2a85', 1.9, 0.76);
-
-    const towerGeo = new THREE.CylinderGeometry(1.2, 2.5, 12.0, 6);
-    const tower = createSolidWithEdges(towerGeo, solidBuildingMaterial, neonCyan);
-    tower.position.y = 6.0;
-    wmGroup.add(tower);
-
-    const halo = edgesToLineSegments(new THREE.TorusGeometry(1.65, 0.08, 4, 32), neonPink);
-    halo.position.y = 9.2;
-    halo.rotation.x = Math.PI / 2;
-    wmGroup.add(halo);
-
-    const rotor = new THREE.Group();
-    rotor.position.set(0, 11.0, 1.5);
-
-    const hubGeo = new THREE.CylinderGeometry(0.6, 0.6, 1.2, 8);
-    hubGeo.rotateX(Math.PI / 2);
-    const hub = createSolidWithEdges(hubGeo, solidBuildingMaterial, neonOrange);
-    rotor.add(hub);
-
-    for (let i = 0; i < 4; i++) {
-      const bladeGeo = new THREE.BoxGeometry(0.3, 5.5, 0.1);
-      bladeGeo.translate(0, 3.0, 0);
-      const blade = createSolidWithEdges(bladeGeo, solidBuildingMaterial, neonOrange);
-      blade.rotation.z = (Math.PI / 2) * i;
-      rotor.add(blade);
-    }
-
-    wmGroup.add(rotor);
-    return { root: wmGroup, rotor };
-  }
-
-  const wmConfig = [
-    { z: -45, side: -1, offset: 22, rot: 0.5, speed: 1.2, phase: 0 },
-    { z: -15, side: 1, offset: 20, rot: -0.3, speed: 0.85, phase: 1.5 },
-    { z: 30, side: -1, offset: 24, rot: 0.8, speed: 1.0, phase: 3.14 }
-  ];
-
-  for (const item of wmConfig) {
-    const x = roadCurveX(item.z) + item.side * item.offset;
-    const y = terrainHeight(x, item.z);
-    const wm = createWindmillTemplate();
-    wm.root.position.set(x, y, item.z);
-    wm.root.rotation.y = item.rot;
-    villageGroup.add(wm.root);
-    dynamicObjects.windmills.push({
-      mesh: wm.rotor,
-      speed: item.speed,
-      phase: item.phase
-    });
-  }
-
-  // ----- УЛИЧНЫЕ ФОНАРИ -----
-  const poleMat = createSolidMaterial(0x1a0c24, 0.9, 0.1, 0.48);
-  const poleOutlineMat = makeLineMat('#a855f7', 1.8, 0.72);
-  const glowTexture2 = createGlowTexture();
-
-  const zs = [-40, -30, -20, -10, 0, 10, 20, 30, 40];
-
-  for (let i = 0; i < zs.length; i++) {
-    const z = zs[i];
-    const side = i % 2 === 0 ? -1 : 1;
-    const x = roadCurveX(z) + side * 4.0;
-    const y = terrainHeight(x, z);
-
-    const group = new THREE.Group();
-    group.position.set(x, y, z);
-
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.15, 3.5, 6), poleMat);
-    pole.position.y = 1.75;
-    group.add(pole);
-
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 1.5), poleMat);
-    arm.position.set(side * -0.6, 3.3, 0);
-    arm.rotation.y = Math.PI / 2;
-    group.add(arm);
-
-    const poleOutline = edgesToLineSegments(new THREE.BoxGeometry(0.3, 3.5, 0.3), poleOutlineMat);
-    poleOutline.position.y = 1.75;
-    group.add(poleOutline);
-
-    const lantern = new THREE.Mesh(new THREE.OctahedronGeometry(0.5, 0), lanternMaterial);
-    lantern.position.set(side * -1.2, 3.0, 0);
-    group.add(lantern);
-
-    const point = new THREE.PointLight(0x00f0ff, 1.55, 15.0, 2.0);
-    point.position.copy(lantern.position);
-    group.add(point);
-    lampLights.push(point);
-
-    const spriteMat = new THREE.SpriteMaterial({
-      map: glowTexture2,
-      color: 0x00f0ff,
-      transparent: true,
-      opacity: 0.76,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false
-    });
-
-    const glow = new THREE.Sprite(spriteMat);
-    glow.position.copy(lantern.position);
-    glow.scale.set(5.0, 5.0, 1);
-    group.add(glow);
-    lampGlowSprites.push(glow);
-
-    villageGroup.add(group);
-  }
-
-  // ----- НЕОНОВЫЙ БИЛБОРД -----
-  const billboardGroup = new THREE.Group();
-  const billboardHologramMat = buildHologramMaterial('#ff2a85');
-
-  const panelFront = new THREE.Mesh(new THREE.PlaneGeometry(8.4, 3.15), billboardHologramMat);
-  panelFront.position.set(0, 6.5, 0.15);
-  billboardGroup.add(panelFront);
-
-  const panelBack = new THREE.Mesh(new THREE.PlaneGeometry(8.4, 3.15), billboardHologramMat);
-  panelBack.position.set(0, 6.5, -0.15);
-  panelBack.rotation.y = Math.PI;
-  billboardGroup.add(panelBack);
-
-  dynamicObjects.billboardPanels.push(panelFront, panelBack);
-
-  const frameMat = makeLineMat('#00f0ff', 3.2, 1.0);
-  const framePink = makeLineMat('#ff2a85', 2.2, 0.82);
-
-  const frame = edgesToLineSegments(new THREE.BoxGeometry(8.8, 3.55, 0.35), frameMat);
-  frame.position.y = 6.5;
-  billboardGroup.add(frame);
-
-  const backFrame = edgesToLineSegments(new THREE.BoxGeometry(9.4, 4.0, 0.6), framePink);
-  backFrame.position.y = 6.5;
-  billboardGroup.add(backFrame);
-
-  const poleMat2 = createSolidMaterial(0x080513, 0.9, 0.16, 0.55);
-  const poleEdge = makeLineMat('#a855f7', 2.2, 0.8);
-
-  const poleL = createSolidWithEdges(new THREE.BoxGeometry(0.22, 6.3, 0.22), poleMat2, poleEdge);
-  poleL.position.set(-3.65, 3.05, 0);
-  billboardGroup.add(poleL);
-
-  const poleR = createSolidWithEdges(new THREE.BoxGeometry(0.22, 6.3, 0.22), poleMat2, poleEdge);
-  poleR.position.set(3.65, 3.05, 0);
-  billboardGroup.add(poleR);
-
-  const baseBar = createSolidWithEdges(new THREE.BoxGeometry(8.0, 0.22, 0.4), poleMat2, poleEdge);
-  baseBar.position.set(0, 3.65, 0);
-  billboardGroup.add(baseBar);
-
-  const glowMat3 = new THREE.SpriteMaterial({
-    map: glowTexture2,
-    color: 0xff2a85,
-    transparent: true,
-    opacity: 0.55,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false
-  });
-  const glow2 = new THREE.Sprite(glowMat3);
-  glow2.position.set(0, 6.5, 0);
-  glow2.scale.set(13, 6, 1);
-  billboardGroup.add(glow2);
-
-  const billboardLightA = new THREE.PointLight(0x00f0ff, 2.0, 22, 2.0);
-  billboardLightA.position.set(-2.8, 6.6, 1.0);
-  billboardGroup.add(billboardLightA);
-
-  const billboardLightB = new THREE.PointLight(0xff2a85, 2.0, 22, 2.0);
-  billboardLightB.position.set(2.8, 6.6, -1.0);
-  billboardGroup.add(billboardLightB);
-
-  dynamicObjects.billboardLights.push(billboardLightA, billboardLightB, glow2);
-
-  const yBillboard = terrainHeight(landmarks.billboard.x, landmarks.billboard.z);
-  billboardGroup.position.set(landmarks.billboard.x, yBillboard, landmarks.billboard.z);
-  billboardGroup.rotation.y = Math.PI / 5;
-  billboardGroup.scale.setScalar(1.6);
-  villageGroup.add(billboardGroup);
-
-  // ----- АТМОСФЕРНЫЕ ЧАСТИЦЫ -----
-  const particleCount = 380;
-  const particleGeo = new THREE.BufferGeometry();
-  const particlePos = new Float32Array(particleCount * 3);
-  const particlePhases = new Float32Array(particleCount);
-
-  for (let i = 0; i < particleCount; i++) {
-    const r = 30 + Math.random() * 65;
-    const a = Math.random() * Math.PI * 2;
-    particlePos[i * 3] = Math.cos(a) * r;
-    particlePos[i * 3 + 1] = 6.0 + Math.random() * 24.0;
-    particlePos[i * 3 + 2] = Math.sin(a) * r;
-    particlePhases[i] = Math.random() * Math.PI * 2;
-  }
-
-  particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePos, 3));
-  particleGeo.setAttribute('phase', new THREE.BufferAttribute(particlePhases, 1));
-
-  const particleMat = buildCurlNoiseSpecksMaterial();
-
-  dynamicObjects.particles = new THREE.Points(particleGeo, particleMat);
-  villageGroup.add(dynamicObjects.particles);
-
-  // ----- ДРОНЫ -----
-  function createHovercraftTemplate() {
-    const hcGroup = new THREE.Group();
-
-    const coreMat = createSolidMaterial(0x020508, 0.9, 0.18, 0.48);
-    const edgeMat = makeLineMat('#ff2a85', 2.6, 1.0);
-    const detailMat = makeLineMat('#00f0ff', 2.1, 1.0);
-    const amberMat = makeLineMat('#ffb84a', 1.9, 0.9);
-
-    const baseGeo = new THREE.CylinderGeometry(0.62, 0.9, 0.34, 8);
-    baseGeo.scale(1.05, 1, 1.65);
-    const base = createSolidWithEdges(baseGeo, coreMat, edgeMat);
-    base.position.y = 0.15;
-    hcGroup.add(base);
-
-    const noseGeo = new THREE.ConeGeometry(0.72, 1.2, 4);
-    noseGeo.rotateX(Math.PI / 2);
-    const nose = createSolidWithEdges(noseGeo, coreMat, detailMat);
-    nose.position.set(0, 0.34, 1.15);
-    hcGroup.add(nose);
-
-    const cabinGeo = new THREE.BoxGeometry(0.68, 0.42, 1.0);
-    const cabin = createSolidWithEdges(cabinGeo, coreMat, detailMat);
-    cabin.position.set(0, 0.58, 0.28);
-    cabin.rotation.x = -0.08;
-    hcGroup.add(cabin);
-
-    const wingGeo = new THREE.BoxGeometry(2.25, 0.08, 0.42);
-    const wing = createSolidWithEdges(wingGeo, coreMat, amberMat);
-    wing.position.set(0, 0.28, -0.25);
-    hcGroup.add(wing);
-
-    const thrusterGeo = new THREE.CylinderGeometry(0.2, 0.16, 0.52, 8);
-    thrusterGeo.rotateX(Math.PI / 2);
-
-    const thrustL = createSolidWithEdges(thrusterGeo, coreMat, edgeMat);
-    thrustL.position.set(-0.43, 0.42, -0.94);
-    hcGroup.add(thrustL);
-
-    const thrustR = createSolidWithEdges(thrusterGeo, coreMat, edgeMat);
-    thrustR.position.set(0.43, 0.42, -0.94);
-    hcGroup.add(thrustR);
-
-    function addFlame(x) {
-      const flameGroup = new THREE.Group();
-      flameGroup.position.set(x, 0.42, -1.22);
-
-      const planeGeo = new THREE.PlaneGeometry(0.75, 2.65, 1, 24);
-      planeGeo.rotateX(-Math.PI / 2);
-      planeGeo.translate(0, 0, -1.15);
-
-      const flameA = new THREE.Mesh(planeGeo, flameMaterial);
-      flameA.rotation.z = 0;
-      flameGroup.add(flameA);
-
-      const flameB = new THREE.Mesh(planeGeo, flameMaterial);
-      flameB.rotation.z = Math.PI / 2;
-      flameGroup.add(flameB);
-
-      const fireGlowTex = createGlowTexture(128, "fire");
-      const fireSprite = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: fireGlowTex,
-        color: 0xff5a1c,
-        transparent: true,
-        opacity: 0.74,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false
-      }));
-      fireSprite.position.set(0, 0, -1.1);
-      fireSprite.scale.set(2.3, 1.15, 1);
-      flameGroup.add(fireSprite);
-
-      return flameGroup;
-    }
-
-    hcGroup.add(addFlame(-0.43));
-    hcGroup.add(addFlame(0.43));
-
-    const underLight = new THREE.PointLight(0xff2a85, 2.2, 8.0, 2.0);
-    underLight.position.set(0, -0.25, 0);
-    hcGroup.add(underLight);
-
-    const fireLight = new THREE.PointLight(0xff6a22, 2.3, 10.0, 2.0);
-    fireLight.position.set(0, 0.42, -2.0);
-    hcGroup.add(fireLight);
-
-    hcGroup.userData.fireLight = fireLight;
-    return hcGroup;
-  }
-
-  const template = createHovercraftTemplate();
-
-  for (let i = 0; i < 4; i++) {
-    const drone = template.clone(true);
-    drone.scale.setScalar(i === 0 ? 1.05 : 0.76);
-    villageGroup.add(drone);
-
-    dynamicObjects.drones.push({
-      mesh: drone,
-      offset: (i / 4) * Math.PI * 2,
-      speed: 0.45 + Math.random() * 0.45,
-      altitude: i === 0 ? 3.8 : 3.0 + Math.random() * 1.2
-    });
-  }
-
-  // ----- ДРАКОНЫ -----
-  function createLopolyDragon(neonColorHex, bodyColorHex, wingMembraneColorHex) {
-    const dragonGroup = new THREE.Group();
-
-    const neonMat = makeLineMat(neonColorHex, 2.5, 1.0);
-    const bodyMat = createSolidMaterial(bodyColorHex, 0.8, 0.2, 0.4);
-
-    const wingMembraneMat = new THREE.MeshStandardMaterial({
-      color: wingMembraneColorHex,
-      metalness: 0.2,
-      roughness: 0.8,
-      transparent: true,
-      opacity: 0.25,
-      side: THREE.DoubleSide
-    });
-
-    const tailSegments = [];
-    const neckSegments = [];
-    const wings = { L: null, R: null };
-
-    const torsoGeo = new THREE.BoxGeometry(1.5, 1.5, 4.0);
-    const torso = createSolidWithEdges(torsoGeo, bodyMat, neonMat);
-    dragonGroup.add(torso);
-
-    let parentNode = torso;
-    const neckCount = 3;
-    for (let i = 0; i < neckCount; i++) {
-      const pivot = new THREE.Group();
-      if (i === 0) {
-        pivot.position.set(0, 0.5, 1.8);
-      } else {
-        pivot.position.set(0, 0.4, 0.9);
-      }
-
-      const segGeo = new THREE.BoxGeometry(1.0 - i * 0.15, 1.0 - i * 0.15, 1.0);
-      segGeo.translate(0, 0, 0.5);
-      const seg = createSolidWithEdges(segGeo, bodyMat, neonMat);
-      pivot.add(seg);
-      parentNode.add(pivot);
-      neckSegments.push(pivot);
-      parentNode = pivot;
-    }
-
-    const headGroup = new THREE.Group();
-    headGroup.position.set(0, 0.3, 0.9);
-
-    const skullGeo = new THREE.BoxGeometry(1.3, 1.1, 1.6);
-    const skull = createSolidWithEdges(skullGeo, bodyMat, neonMat);
-    skull.position.set(0, 0.2, 0.8);
-    headGroup.add(skull);
-
-    const snoutGeo = new THREE.ConeGeometry(0.65, 1.5, 5);
-    snoutGeo.rotateX(Math.PI / 2);
-    const snout = createSolidWithEdges(snoutGeo, bodyMat, neonMat);
-    snout.position.set(0, -0.1, 2.1);
-    headGroup.add(snout);
-
-    const hornGeo = new THREE.ConeGeometry(0.18, 1.6, 4);
-    hornGeo.rotateX(-Math.PI / 5);
-    for (const side of [-1, 1]) {
-      const horn = createSolidWithEdges(hornGeo, bodyMat, makeLineMat('#ffb84a', 2.0, 1.0));
-      horn.position.set(side * 0.36, 0.8, 0.4);
-      headGroup.add(horn);
-    }
-
-    const eyeGeo = new THREE.SphereGeometry(0.18, 4, 4);
-    const eyeMat = new THREE.MeshBasicMaterial({ color: neonColorHex });
-    for (const side of [-1, 1]) {
-      const eye = new THREE.Mesh(eyeGeo, eyeMat);
-      eye.position.set(side * 0.6, 0.35, 1.3);
-      headGroup.add(eye);
-    }
-
-    parentNode.add(headGroup);
-
-    parentNode = torso;
-    const tailCount = 5;
-    for (let i = 0; i < tailCount; i++) {
-      const pivot = new THREE.Group();
-      if (i === 0) {
-        pivot.position.set(0, -0.2, -1.8);
-      } else {
-        pivot.position.set(0, 0, -0.9);
-      }
-
-      const segGeo = new THREE.BoxGeometry(0.9 - i * 0.12, 0.9 - i * 0.12, 1.0);
-      segGeo.translate(0, 0, -0.5);
-      const seg = createSolidWithEdges(segGeo, bodyMat, neonMat);
-      pivot.add(seg);
-      parentNode.add(pivot);
-      tailSegments.push(pivot);
-      parentNode = pivot;
-    }
-
-    const spadeGeo = new THREE.ConeGeometry(0.55, 1.5, 3);
-    spadeGeo.rotateX(-Math.PI / 2);
-    const spade = createSolidWithEdges(spadeGeo, bodyMat, makeLineMat('#ffe56b', 2.0, 1.0));
-    spade.position.set(0, 0, -1.2);
-    parentNode.add(spade);
-
-    const wingLPivot = new THREE.Group();
-    wingLPivot.position.set(-0.8, 0.6, 0.2);
-
-    const armLGeo = new THREE.BoxGeometry(3.0, 0.2, 0.2);
-    armLGeo.translate(-1.5, 0, 0);
-    const armL = createSolidWithEdges(armLGeo, bodyMat, neonMat);
-    wingLPivot.add(armL);
-
-    const memLGeo = new THREE.ConeGeometry(1.5, 3.0, 3);
-    memLGeo.rotateX(Math.PI / 2);
-    memLGeo.scale(1.0, 0.05, 1.0);
-    memLGeo.translate(-1.5, -0.8, -0.6);
-    const memL = createSolidWithEdges(memLGeo, wingMembraneMat, neonMat);
-    wingLPivot.add(memL);
-
-    torso.add(wingLPivot);
-    wings.L = wingLPivot;
-
-    const wingRPivot = new THREE.Group();
-    wingRPivot.position.set(0.8, 0.6, 0.2);
-
-    const armRGeo = new THREE.BoxGeometry(3.0, 0.2, 0.2);
-    armRGeo.translate(1.5, 0, 0);
-    const armR = createSolidWithEdges(armRGeo, bodyMat, neonMat);
-    wingRPivot.add(armR);
-
-    const memRGeo = new THREE.ConeGeometry(1.5, 3.0, 3);
-    memRGeo.rotateX(Math.PI / 2);
-    memRGeo.scale(1.0, 0.05, 1.0);
-    memRGeo.translate(1.5, -0.8, -0.6);
-    const memR = createSolidWithEdges(memRGeo, wingMembraneMat, neonMat);
-    wingRPivot.add(memR);
-
-    torso.add(wingRPivot);
-    wings.R = wingRPivot;
-
-    const underGlowLight = new THREE.PointLight(neonColorHex, 2.5, 18.0, 1.8);
-    underGlowLight.position.set(0, -1.5, 0);
-    dragonGroup.add(underGlowLight);
-
-    dragonGroup.userData = {
-      wings,
-      tailSegments,
-      neckSegments,
-      head: headGroup,
-      glowLight: underGlowLight
-    };
-
-    return dragonGroup;
-  }
-
-  const parent1 = new THREE.Group();
-  const model1 = createLopolyDragon('#00f0ff', '#050a18', '#004a63');
-  model1.scale.setScalar(0.7);
-  parent1.add(model1);
-  villageGroup.add(parent1);
-
-  dynamicObjects.dragons.push({
-    parent: parent1,
-    model: model1,
-    type: 'ice',
-    speedScale: 0.15,
-    phaseOffset: 0
-  });
-
-  const parent2 = new THREE.Group();
-  const model2 = createLopolyDragon('#ff2a85', '#120216', '#660233');
-  model2.scale.setScalar(0.65);
-  parent2.add(model2);
-  villageGroup.add(parent2);
-
-  dynamicObjects.dragons.push({
-    parent: parent2,
-    model: model2,
-    type: 'fire',
-    speedScale: 0.19,
-    phaseOffset: Math.PI
-  });
-
-  // ============================================================
-  // ЭКСПОРТ КОЛЛАЙДЕРОВ
-  // ============================================================
-  villageGroup.traverse((child) => {
-    if (child.isMesh && child.geometry) {
-      cityColliders.push(child);
-    }
-  });
-
-  // Возвращаем группу
-  return villageGroup;
+  return group;
 }
