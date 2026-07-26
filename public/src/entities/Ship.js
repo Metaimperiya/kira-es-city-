@@ -50,12 +50,14 @@ function setupShip(model) {
 
   shipContainer.add(model);
 
-  // 💡 УВЕЛИЧИВАЕМ ЗАМОК (было 200, стало 280)
-  // Проходы станут соразмерными, а ступеньки визуально ниже
-  const TARGET_SIZE = 280; 
+  // Масштабируем ширину и длину
+  const TARGET_SIZE = 240; 
   const maxDim = Math.max(size.x, size.z);
   const scale = TARGET_SIZE / (maxDim || 1);
-  shipContainer.scale.set(scale, scale, scale);
+
+  // 💡 СЖИМАЕМ ВЫСОТУ (Y = scale * 0.6)
+  // Это делает ступеньки ниже и приплюснутыми, чтобы персонаж легко перешагивал их!
+  shipContainer.scale.set(scale, scale * 0.6, scale);
 
   // Включаем тени
   model.traverse((child) => {
@@ -65,8 +67,8 @@ function setupShip(model) {
     }
   });
 
-  // 💡 ОПУСКАЕМ ЗАМОК НИЖЕ (было Y=6, стало Y=1.5)
-  shipContainer.position.set(0, 1.5, 0);
+  // Опускаем замок ниже к воде/полу
+  shipContainer.position.set(0, 1.0, 0);
 
   scene.add(shipContainer);
   mainShip = shipContainer;
@@ -79,7 +81,7 @@ function setupShip(model) {
   ];
 
   firePositions.forEach((pos) => {
-    const fire = new Bonfire(pos.x, 1.5, pos.z);
+    const fire = new Bonfire(pos.x, 1.0, pos.z);
     bonfires.push(fire);
   });
 
