@@ -1,19 +1,9 @@
 // ============================================================
-// ПОЛНЫЙ КИБЕР-ГОРОД (3000+ СТРОК — ВСЁ ВКЛЮЧЕНО)
+// КИБЕР-ГОРОД (БЕЗ ПОСТ-ЭФФЕКТОВ)
 // ============================================================
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { Line2 } from 'three/addons/lines/Line2.js';
-import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
-import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
-import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
-import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 
 export const cityColliders = [];
 
@@ -600,41 +590,6 @@ function buildCurlNoiseSpecksMaterial() {
   return mat;
 }
 
-const ChromaticInterferenceShader = {
-  uniforms: {
-    tDiffuse: { value: null },
-    time: { value: 0 },
-    drift: { value: 0.25 },
-    neonPower: { value: 1.2 }
-  },
-  vertexShader: `
-    varying vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  fragmentShader: `
-    uniform sampler2D tDiffuse;
-    uniform float time;
-    uniform float drift;
-    uniform float neonPower;
-    varying vec2 vUv;
-    void main() {
-      vec2 uv = vUv;
-      vec2 dir = uv - vec2(0.5);
-      vec2 offset = dir * (0.015 * drift);
-      vec4 cr = texture2D(tDiffuse, uv - offset);
-      vec4 cg = texture2D(tDiffuse, uv);
-      vec4 cb = texture2D(tDiffuse, uv + offset);
-      vec3 finalColor = vec3(cr.r, cg.g, cb.b);
-      finalColor *= (1.0 + neonPower * 0.12);
-      finalColor = finalColor / (finalColor + vec3(0.14));
-      gl_FragColor = vec4(finalColor, 1.0);
-    }
-  `
-};
-
 // ============================================================
 // ОСНОВНАЯ ФУНКЦИЯ — СОЗДАЁТ ВЕСЬ ГОРОД
 // ============================================================
@@ -652,23 +607,6 @@ export function createCyberCity() {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.12;
-
-  const composer = new EffectComposer(renderer);
-  composer.addPass(new RenderPass(scene, camera));
-
-  const bloomPass = new UnrealBloomPass(
-    new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.10,
-    0.58,
-    0.18
-  );
-  bloomPass.threshold = 0.16;
-  bloomPass.radius = 0.62;
-  composer.addPass(bloomPass);
-
-  const screenPass = new ShaderPass(ChromaticInterferenceShader);
-  composer.addPass(screenPass);
-  composer.addPass(new OutputPass());
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -1911,13 +1849,12 @@ export function createCyberCity() {
   // ============================================================
   // ЭКСПОРТ КОЛЛАЙДЕРОВ
   // ============================================================
-  // Собираем все меши для коллизий
   villageGroup.traverse((child) => {
     if (child.isMesh && child.geometry) {
       cityColliders.push(child);
     }
   });
 
-  // Возвращаем группу, чтобы main.js мог добавить её в сцену
+  // Возвращаем группу
   return villageGroup;
 }
