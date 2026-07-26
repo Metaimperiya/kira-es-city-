@@ -13,7 +13,7 @@ export let mainShip = null;
 export let bonfires = [];
 
 export const SPAWN_LOCAL = { x: 0.04, y: 12.50, z: 2.64 };
-export let shipSpawnPoint = { x: 0, y: 2, z: 0 };
+export let shipSpawnPoint = { x: 0, y: 3, z: 0 };
 
 export function loadShip() {
   return new Promise((resolve) => {
@@ -50,14 +50,11 @@ function setupShip(model) {
 
   shipContainer.add(model);
 
-  // Масштабируем ширину и длину
-  const TARGET_SIZE = 240; 
-  const maxDim = Math.max(size.x, size.z);
-  const scale = TARGET_SIZE / (maxDim || 1);
-
-  // 💡 СЖИМАЕМ ВЫСОТУ (Y = scale * 0.6)
-  // Это делает ступеньки ниже и приплюснутыми, чтобы персонаж легко перешагивал их!
-  shipContainer.scale.set(scale, scale * 0.6, scale);
+  // 💡 ЕЩЁ УМЕНЬШАЕМ ЗАМОК (поставили 110)
+  const TARGET_SIZE = 110; 
+  const maxDim = Math.max(size.x, size.z) || 1;
+  const scale = TARGET_SIZE / maxDim;
+  shipContainer.scale.set(scale, scale, scale);
 
   // Включаем тени
   model.traverse((child) => {
@@ -67,8 +64,8 @@ function setupShip(model) {
     }
   });
 
-  // Опускаем замок ниже к воде/полу
-  shipContainer.position.set(0, 1.0, 0);
+  // 💡 ОПУСКАЕМ НА ВЫСОТУ ПЕРСОНАЖА (поставили 0)
+  shipContainer.position.set(0, 0, 0);
 
   scene.add(shipContainer);
   mainShip = shipContainer;
@@ -81,7 +78,7 @@ function setupShip(model) {
   ];
 
   firePositions.forEach((pos) => {
-    const fire = new Bonfire(pos.x, 1.0, pos.z);
+    const fire = new Bonfire(pos.x, 0, pos.z);
     bonfires.push(fire);
   });
 
