@@ -13,7 +13,7 @@ export let mainShip = null;
 export let bonfires = [];
 
 export const SPAWN_LOCAL = { x: 0.04, y: 12.50, z: 2.64 };
-export let shipSpawnPoint = { x: 0, y: 5, z: 0 };
+export let shipSpawnPoint = { x: 0, y: 2, z: 0 };
 
 export function loadShip() {
   return new Promise((resolve) => {
@@ -50,8 +50,9 @@ function setupShip(model) {
 
   shipContainer.add(model);
 
-  // Масштабируем
-  const TARGET_SIZE = 200;
+  // 💡 УВЕЛИЧИВАЕМ ЗАМОК (было 200, стало 280)
+  // Проходы станут соразмерными, а ступеньки визуально ниже
+  const TARGET_SIZE = 280; 
   const maxDim = Math.max(size.x, size.z);
   const scale = TARGET_SIZE / (maxDim || 1);
   shipContainer.scale.set(scale, scale, scale);
@@ -64,13 +65,13 @@ function setupShip(model) {
     }
   });
 
-  // Поднимаем над водой
-  shipContainer.position.set(0, 6, 0);
+  // 💡 ОПУСКАЕМ ЗАМОК НИЖЕ (было Y=6, стало Y=1.5)
+  shipContainer.position.set(0, 1.5, 0);
 
   scene.add(shipContainer);
   mainShip = shipContainer;
 
-  // --- КОСТРЫ (если нужны) ---
+  // --- КОСТРЫ ---
   const firePositions = [
     { x: -4.66, z: 4.81 },
     { x: 5.29, z: 3.15 },
@@ -78,9 +79,8 @@ function setupShip(model) {
   ];
 
   firePositions.forEach((pos) => {
-    const fire = new Bonfire(pos.x, 6, pos.z);
+    const fire = new Bonfire(pos.x, 1.5, pos.z);
     bonfires.push(fire);
-    console.log(`🔥 Костёр на X=${pos.x}, Z=${pos.z}`);
   });
 
   shipContainer.updateMatrixWorld(true);
